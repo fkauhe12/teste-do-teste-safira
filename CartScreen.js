@@ -12,14 +12,14 @@ import { Ionicons } from "@expo/vector-icons";
 // 🧩 utilitário multiplataforma para a imagem
 const getCartIconSource = () => {
   try {
-    const img = require("../assets/icon_car_vazio.png"); // <-- caminho ajustado
+    const img = require("./assets/icon_car_vazio.png");
     if (Platform.OS === "web") {
-      return { uri: img?.default ?? "../assets/icon_car_vazio.png" };
+      return { uri: img?.default ?? "./assets/icon_car_vazio.png" };
     }
     return img;
   } catch {
     // fallback leve, se algo der errado
-    return { uri: "../assets/icon_car_vazio.png" };
+    return { uri: "./assets/icon_car_vazio.png" };
   }
 };
 

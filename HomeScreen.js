@@ -8,24 +8,23 @@ import {
   ScrollView,
   Platform,
   StatusBar,
-  SafeAreaView,
   Animated,
   Easing,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
 
 // 🧩 Imagem compatível com Web e mobile
 const getLogoSource = () => {
   try {
-    const img = require("../assets/Logo_safira.png");
+    const img = require("./assets/Logo_safira.png");
     if (Platform.OS === "web") {
-      return { uri: img?.default ?? "../assets/Logo_safira.png" };
+      return { uri: img?.default ?? "./assets/Logo_safira.png" };
     }
     return img;
   } catch {
-    return { uri: "../assets/Logo_safira.png" };
+    return { uri: "./assets/Logo_safira.png" };
   }
 };
 
@@ -70,12 +69,7 @@ export default function HomeScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView
-      style={[
-        styles.container,
-        { paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : insets.top },
-      ]}
-    >
+    <SafeAreaProvider style={styles.container} edges={['top', 'left', 'right']}>
       <Animated.View
         style={{
           flex: 1,
@@ -140,7 +134,7 @@ export default function HomeScreen({ navigation }) {
           </View>
         </ScrollView>
       </Animated.View>
-    </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -148,11 +142,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#d9d9d9" },
 
   header: {
+    height: "20%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 18,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
