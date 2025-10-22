@@ -15,14 +15,14 @@ import { LinearGradient } from "expo-linear-gradient";
 // 🧩 utilitário multiplataforma para imagem
 const getLogoSource = () => {
   try {
-    const img = require("../assets/Logo_safira.png"); // <-- caminho ajustado
+    const img = require("./assets/Logo_safira.png");
     if (Platform.OS === "web") {
-      return { uri: img?.default ?? "../assets/Logo_safira.png" };
+      return { uri: img?.default ?? "./assets/Logo_safira.png" };
     }
     return img;
   } catch {
     // fallback leve, caso o arquivo não exista ou a importação falhe
-    return { uri: "../assets/Logo_safira.png" };
+    return { uri: "./assets/Logo_safira.png" };
   }
 };
 
