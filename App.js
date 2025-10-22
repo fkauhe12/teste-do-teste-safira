@@ -24,6 +24,7 @@ import {
 } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import * as NavigationBar from "expo-navigation-bar";
 
 // ⚠️ fallback BlurView
 let BlurView;
@@ -69,7 +70,22 @@ export default function App() {
   const navRef = useNavigationContainerRef();
   const [currentRoute, setCurrentRoute] = useState(null);
 
-  // Simula carregamento inicial
+  // ─── Ocultar botões Android ───
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      NavigationBar.setVisibilityAsync("hidden");
+      NavigationBar.setBehaviorAsync("immersive"); // ou "sticky-immersive"
+    }
+
+    return () => {
+      if (Platform.OS === "android") {
+        NavigationBar.setVisibilityAsync("visible");
+        NavigationBar.setBehaviorAsync("overlay");
+      }
+    };
+  }, []);
+
+  // ─── Simula carregamento inicial ───
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 2000);
     return () => clearTimeout(timer);
@@ -108,7 +124,6 @@ export default function App() {
     },
   };
 
-  // Enquanto não estiver pronto, exibe tela de loading
   if (!ready) return <LoadingScreen onFinish={() => setReady(true)} />;
 
   return (
