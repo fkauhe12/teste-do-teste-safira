@@ -37,7 +37,6 @@ export default function LogScreen() {
     setErrors(newErrors);
     if (hasError) return;
 
-    // 🔧 Compatível com Web e Mobile
     if (Platform.OS === "web") {
       window.alert(`Login bem-sucedido! Entrou como: ${identifier}`);
     } else {
@@ -57,7 +56,12 @@ export default function LogScreen() {
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 20 }}
         keyboardShouldPersistTaps="handled"
+        bounces={false} 
       >
+        {/* Overlay escuro e semi-transparente para simular blur */}
+        <View style={styles.overlay} />
+
+        {/* Caixa de login */}
         <View style={styles.box}>
           <TouchableOpacity style={styles.backButtonInside} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -120,6 +124,14 @@ export default function LogScreen() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: "transparent" },
+
+  // Overlay escuro + translúcido para simular blur
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.6)", // ajusta opacidade conforme quiser
+    zIndex: 0, // fica atrás da caixa
+  },
+
   box: {
     width: "100%",
     backgroundColor: "#1e1e1e",
@@ -127,6 +139,7 @@ const styles = StyleSheet.create({
     padding: 23,
     maxWidth: 480,
     alignSelf: "center",
+    zIndex: 1, // garante que fique acima do overlay
   },
   backButtonInside: {
     flexDirection: "row",

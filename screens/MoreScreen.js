@@ -62,7 +62,7 @@ const MoreScreen = ({ navigation }) => {
           {/* Botão Entrar */}
           <TouchableOpacity
             style={styles.loginButton}
-            onPress={() => navigation.navigate("LogScreen")}
+            onPress={() => navigation.navigate("Log")}
           >
             <LinearGradient
               colors={["#4873FF", "#3E57AC", "#0E2E98"]}

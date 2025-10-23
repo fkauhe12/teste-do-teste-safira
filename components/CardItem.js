@@ -8,6 +8,7 @@ export default function CardItem({
   price, 
   imageUrl, 
   onPress, 
+  onAdd,
   style,
   discount,
   rating,
@@ -51,15 +52,27 @@ export default function CardItem({
 
         {/* Preço e avaliação */}
         <View style={styles.footer}>
-          <Text style={styles.price}>
-            R$ {typeof price === 'number' ? price.toFixed(2) : price}
-          </Text>
-          
-          {rating > 0 && (
-            <View style={styles.rating}>
-              <Text style={styles.ratingText}>★ {rating.toFixed(1)}</Text>
-            </View>
-          )}
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>
+              R$ {typeof price === 'number' ? price.toFixed(2) : '0.00'}
+            </Text>
+          </View>
+
+          <View style={styles.rightRow}>
+            {typeof rating === 'number' && rating > 0 && (
+              <View style={styles.rating}>
+                <Text style={styles.ratingText}>★ {rating.toFixed(1)}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.smallAddButton}
+              onPress={onAdd}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.smallAddButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -94,6 +107,7 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+    backgroundColor: '#fff',
   },
   discountBadge: {
     position: 'absolute',
@@ -110,6 +124,7 @@ const styles = StyleSheet.create({
   },
   info: {
     padding: 12,
+    backgroundColor: '#fff',
   },
   title: {
     fontSize: 16,
@@ -128,10 +143,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
+  priceRow: {
+    flex: 1,
+  },
+  rightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   price: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#4873FF',
+  },
+  smallAddButton: {
+    backgroundColor: '#1976D2',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  smallAddButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   rating: {
     flexDirection: 'row',

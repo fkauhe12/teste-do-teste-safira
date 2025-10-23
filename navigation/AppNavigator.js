@@ -1,42 +1,43 @@
-import React, { useState } from 'react';
-import { View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+// navigation/AppNavigator.js
+import React, { useState, useRef } from "react";
+import { View } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
 
-// Importando as telas
-import HomeScreen from '../screens/HomeScreen';
-import CartScreen from '../screens/CartScreen';
-import MoreScreen from '../screens/MoreScreen';
-import SearchScreen from '../screens/SearchScreen';
-import SadScreen from '../screens/SadScreen';
-import LogScreen from '../screens/LogScreen';
-import LogCadastroScreen from '../screens/LogCadastroScreen';
-import LoadingScreen from '../screens/LoadingScreen';
+import HomeScreen from "../screens/HomeScreen";
+import CartScreen from "../screens/CartScreen";
+import MoreScreen from "../screens/MoreScreen";
+import SearchScreen from "../screens/SearchScreen";
+import SadScreen from "../screens/SadScreen";
+import LogScreen from "../screens/LogScreen";
+import LogCadastroScreen from "../screens/LogCadastroScreen";
+import LoadingScreen from "../screens/LoadingScreen";
 
-// Importando componentes
-import GlobalBottomBar from '../components/GlobalBottomBar';
+import GlobalBottomBar from "../components/GlobalBottomBar";
 
 const Stack = createStackNavigator();
 
-// Navigator principal do app
+// Lista de telas onde a bottom bar deve ficar oculta
+const HIDDEN_BOTTOM_BAR = new Set(["Loading", "Log", "LogCadastro"]);
+
 export default function AppNavigator() {
-  const [currentRoute, setCurrentRoute] = useState('Home');
-  const navigationRef = React.useRef(null);
+  const [currentRoute, setCurrentRoute] = useState(null); // inicializa como null
+  const navigationRef = useRef(null);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: "transparent" }}>
       <NavigationContainer
         ref={navigationRef}
         onStateChange={() => {
-          const currentRouteName = navigationRef.current?.getCurrentRoute()?.name;
-          setCurrentRoute(currentRouteName);
+          const routeName = navigationRef.current?.getCurrentRoute()?.name;
+          setCurrentRoute(routeName);
         }}
       >
         <Stack.Navigator
           initialRouteName="Loading"
           screenOptions={{
             headerShown: false,
-            cardStyle: { backgroundColor: '#fff' }
+            cardStyle: { backgroundColor: "transparent" }, // cards transparentes
           }}
         >
           <Stack.Screen name="Loading" component={LoadingScreen} />
@@ -45,15 +46,27 @@ export default function AppNavigator() {
           <Stack.Screen name="Cart" component={CartScreen} />
           <Stack.Screen name="More" component={MoreScreen} />
           <Stack.Screen name="SAD" component={SadScreen} />
-          <Stack.Screen name="Log" component={LogScreen} />
+
+          {/* Tela de login como modal transparente */}
+          <Stack.Screen
+            name="Log"
+            component={LogScreen}
+            options={{
+              presentation: "transparentModal",
+              cardStyle: { backgroundColor: "transparent" },
+            }}
+          />
           <Stack.Screen name="LogCadastro" component={LogCadastroScreen} />
         </Stack.Navigator>
       </NavigationContainer>
 
-      <GlobalBottomBar
-        currentRouteName={currentRoute}
-        navigate={(name) => navigationRef.current?.navigate(name)}
-      />
+      {/* Renderiza a bottom bar apenas quando a rota atual não estiver na lista de telas ocultas */}
+      {currentRoute && !HIDDEN_BOTTOM_BAR.has(currentRoute) && (
+        <GlobalBottomBar
+          currentRouteName={currentRoute}
+          navigate={(name) => navigationRef.current?.navigate(name)}
+        />
+      )}
     </View>
   );
 }

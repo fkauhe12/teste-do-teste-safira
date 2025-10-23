@@ -15,7 +15,7 @@ export default function App() {
   }, []);
   return (
     <SafeAreaProvider>
-      <StatusBar style="Auto" />
+      <StatusBar style="light" />
       <AppNavigator />
     </SafeAreaProvider>
   );

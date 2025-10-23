@@ -10,13 +10,20 @@ import {
   StatusBar,
   Animated,
   Easing,
+  Alert,
+  Dimensions,
+  ImageBackground,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets, SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
-import CardItem from '../components/CardItem';
-import GlobalBottomBar from '../components/GlobalBottomBar';
-import { mockProducts, mockUser } from '../data/mockData';
+import { useSafeAreaInsets, SafeAreaProvider } from "react-native-safe-area-context";
+import CardItem from "../components/CardItem";
+import GlobalBottomBar from "../components/GlobalBottomBar";
+import { produtos } from "../data/produtos";
+import { anuncios } from "../data/anuncios";
+import { mockUser } from "../data/mockData";
+
+const { width } = Dimensions.get("window");
 
 // 🧩 Imagem compatível com Web e mobile
 const getLogoSource = () => {
@@ -35,11 +42,10 @@ export default function HomeScreen({ navigation }) {
   const logoSource = getLogoSource();
   const insets = useSafeAreaInsets();
 
-  // valores de animação
+  // Animações de zoom
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // função para aplicar o zoom‑in
   const handleZoomIn = () => {
     Animated.sequence([
       Animated.parallel([
@@ -72,17 +78,19 @@ export default function HomeScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaProvider style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaProvider style={styles.container} edges={["top", "left", "right"]}>
       <GlobalBottomBar currentRouteName="Home" navigate={navigation.navigate} />
+
       <Animated.View
         style={{
           flex: 1,
           opacity: fadeAnim,
           transform: [{ scale: scaleAnim }],
-          marginBottom: Platform.OS === 'web' ? 70 : Platform.OS === 'ios' ? 60 : 60,
+          marginBottom:
+            Platform.OS === "web" ? 70 : Platform.OS === "ios" ? 60 : 60,
         }}
       >
-        {/* Header */}
+        {/* HEADER */}
         <LinearGradient
           colors={["#0E2E98", "#3E57AC", "#4873FF"]}
           start={{ x: 0, y: 1 }}
@@ -105,7 +113,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </LinearGradient>
 
-        {/* Corpo / Conteúdo */}
+        {/* CONTEÚDO */}
         <ScrollView
           contentContainerStyle={[
             styles.containerConteudo,
@@ -113,27 +121,75 @@ export default function HomeScreen({ navigation }) {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.carousel}>
-            <Text style={styles.carouselText}>Anúncios de Recomendação</Text>
+          {/* CARROSSEL DE ANÚNCIOS */}
+          <View style={{ marginTop: 10 }}>
+            <Text style={styles.carouselTitle}>Anúncios de Recomendação</Text>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              style={styles.carousel}
+            >
+              {anuncios.map((anuncio) => (
+                <ImageBackground
+                  key={anuncio.id}
+                  source={anuncio.URLImagem}
+                  style={[styles.anuncioCard, { width: width * 0.9 }]}
+                  imageStyle={{ borderRadius: 15 }}
+                >
+                  {/* Gradiente escuro para destacar o texto */}
+                  <LinearGradient
+                    colors={["rgba(0,0,0,0.1)", "transparent"]}
+                    style={styles.anuncioOverlay}
+                  >
+                    <Text style={styles.anuncioTitulo}>{anuncio.titulo}</Text>
+                    <Text style={styles.anuncioDescricao}>{anuncio.descricao}</Text>
+                  </LinearGradient>
+                </ImageBackground>
+              ))}
+            </ScrollView>
           </View>
 
-          {/* Botão com efeito de zoom‑in */}
+          {/* SEÇÃO MAIS VENDIDOS */}
           <TouchableOpacity onPress={handleZoomIn} activeOpacity={0.8}>
-            <Text style={styles.sectionTitle}>Mais Vendidos!</Text>
+            <Text style={styles.sectionTitle}>Mais Vendidos!</Text>
           </TouchableOpacity>
 
           <View style={styles.productsGrid}>
-            {mockProducts.map((product, index) => (
+            {produtos.map((produto) => (
               <CardItem
-                key={product.id}
-                title={product.title}
-                description={product.description}
-                price={product.price}
-                imageUrl={product.imageUrl}
-                discount={product.discount}
-                rating={product.rating}
+                key={produto.id}
+                title={produto.nome}
+                description={`${produto.descricao} - ${produto.dosagem}`}
+                imageUrl={produto.imageUrl}
+                price={
+                  typeof produto.preco === "number" ? produto.preco : undefined
+                }
+                discount={produto.discount ?? 0}
+                rating={produto.rating ?? 0}
                 style={styles.productCard}
-                onPress={() => navigation.navigate('CartScreen', { product })}
+                additionalInfo={`Forma: ${produto.forma}`}
+                onPress={() => {
+                  Alert.alert(
+                    "Adicionar à saloca?",
+                    `Deseja adicionar ${produto.nome} ${produto.dosagem} à sua saloca?`,
+                    [
+                      { text: "Cancelar", style: "cancel" },
+                      {
+                        text: "Sim, adicionar",
+                        onPress: () => {
+                          Alert.alert(
+                            "Sucesso",
+                            "Produto adicionado à saloca!"
+                          );
+                          navigation.navigate("CartScreen", {
+                            product: produto,
+                          });
+                        },
+                      },
+                    ]
+                  );
+                }}
               />
             ))}
           </View>
@@ -146,9 +202,8 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#d9d9d9" },
 
-  // Header
   header: {
-    height:"18%",  
+    height: "18%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -188,42 +243,65 @@ const styles = StyleSheet.create({
     borderRadius: 1000,
     paddingHorizontal: 5,
   },
-  badgeText: { color: "#fff", fontSize: 12, fontWeight: "bold" }, 
+  badgeText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
 
   containerConteudo: { paddingHorizontal: 10 },
+
   carousel: {
-    backgroundColor: "#B0BEC5",
-    borderRadius: 10,
-    height: 120,
-    justifyContent: "center",
-    alignItems: "center",
     marginTop: 10,
   },
-  carouselText: { color: "#fff", fontSize: 16 },
+  carouselTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 10,
+  },
+  anuncioCard: {
+    borderRadius: 15,
+    height: 150,
+    marginHorizontal: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 3,
+  },
+  anuncioTitulo: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#000000ff",
+    marginBottom: 5,
+  },
+  anuncioDescricao: {
+    fontSize: 14,
+    color: "#000002ff",
+    textAlign: "center",
+    fontWeight: "bold",
+    paddingHorizontal: 20,
+  },
+  anuncioOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 15,
+    paddingHorizontal: 15,
+  },
+
+
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 10,
     marginTop: 20,
   },
-  productsGrid: { 
-    flexDirection: "row", 
-    flexWrap: "wrap", 
+
+  productsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
-    paddingHorizontal: 5
+    paddingHorizontal: 5,
   },
   productCard: {
     width: "48%",
     marginBottom: 15,
   },
-  imagePlaceholder: {
-    width: "100%",
-    height: 100,
-    backgroundColor: "#333",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 10,
-    borderRadius: 8,
-  },
-  productName: { fontSize: 14, fontWeight: "600" },
 });
+
