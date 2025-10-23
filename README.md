@@ -1,11 +1,67 @@
-# Sample Snack app
+# Safira App
 
-Open the `App.js` file to start writing some code. You can preview the changes directly on your phone or tablet by scanning the **QR code** or use the iOS or Android emulators. When you're done, click **Save** and share the link!
+Aplicativo React Native/Expo com interface moderna e funcionalidades de e-commerce.
 
-When you're ready to see everything that Expo provides (or if you want to use your own editor) you can **Download** your project and use it with [expo cli](https://docs.expo.dev/get-started/installation/#expo-cli)).
+## 📁 Estrutura do Projeto
 
-All projects created in Snack are publicly available, so you can easily share the link to this project via link, or embed it on a web page with the `<>` button.
+```
+teste-do-teste-safira/
+│
+├─ assets/                 # Arquivos estáticos
+│   ├─ images/            # Imagens (ex: logos, splash)
+│   ├─ fonts/            # Fontes customizadas
+│   └─ icons/            # Ícones do app
+│
+├─ components/            # Componentes reutilizáveis
+│   └─ ...              # Seus componentes compartilhados
+│
+├─ hooks/                # Custom Hooks
+│   └─ useEndereco.js   # Hook para gerenciar endereços
+│
+├─ services/             # Serviços e integrações
+│   ├─ _firebase.js     # Configuração do Firebase
+│   └─ api.js           # Cliente API REST
+│
+├─ screens/              # Telas do app
+│   ├─ HomeScreen.js
+│   ├─ CartScreen.js
+│   ├─ SearchScreen.js
+│   └─ ...
+│
+├─ navigation/           # Configuração de navegação
+│   └─ AppNavigator.js  # Navegação principal
+│
+└─ App.js               # Entrada do app
+```
 
-If you're having problems, you can tweet to us [@expo](https://twitter.com/expo) or ask in our [forums](https://forums.expo.dev/c/expo-dev-tools/61) or [Discord](https://chat.expo.dev/).
+## 🚀 Como Executar
 
-Snack is Open Source. You can find the code on the [GitHub repo](https://github.com/expo/snack).
+1. Instale as dependências:
+```bash
+npm install
+```
+
+2. Inicie o app:
+```bash
+npm start
+# ou
+expo start
+```
+
+3. Use o app Expo Go no seu dispositivo ou execute em um emulador.
+
+## 📱 Funcionalidades
+
+- Login/Cadastro de usuários
+- Navegação por tabs
+- Carrinho de compras
+- Busca de produtos
+- Gerenciamento de endereços
+
+## 🛠 Tecnologias
+
+- React Native
+- Expo
+- React Navigation
+- Firebase (autenticação/banco de dados)
+- Axios para requisições HTTP

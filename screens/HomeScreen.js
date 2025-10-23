@@ -14,17 +14,20 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets, SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
+import CardItem from '../components/CardItem';
+import GlobalBottomBar from '../components/GlobalBottomBar';
+import { mockProducts, mockUser } from '../data/mockData';
 
 // 🧩 Imagem compatível com Web e mobile
 const getLogoSource = () => {
   try {
-    const img = require("./assets/Logo_safira.png");
+    const img = require("../assets/images/Logo_safira.png");
     if (Platform.OS === "web") {
-      return { uri: img?.default ?? "./assets/Logo_safira.png" };
+      return { uri: img?.default ?? "../assets/images/Logo_safira.png" };
     }
     return img;
   } catch {
-    return { uri: "./assets/Logo_safira.png" };
+    return { uri: "../assets/images/Logo_safira.png" };
   }
 };
 
@@ -70,11 +73,13 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <SafeAreaProvider style={styles.container} edges={['top', 'left', 'right']}>
+      <GlobalBottomBar currentRouteName="Home" navigate={navigation.navigate} />
       <Animated.View
         style={{
           flex: 1,
           opacity: fadeAnim,
           transform: [{ scale: scaleAnim }],
+          marginBottom: Platform.OS === 'web' ? 70 : Platform.OS === 'ios' ? 60 : 60,
         }}
       >
         {/* Header */}
@@ -91,7 +96,7 @@ export default function HomeScreen({ navigation }) {
               <Text style={{ color: "#fff", fontWeight: "bold" }}>Logo</Text>
             </View>
           )}
-          <Text style={styles.greeting}>Olá, Visitante!</Text>
+          <Text style={styles.greeting}>Olá, {mockUser.name}!</Text>
           <TouchableOpacity style={styles.notification}>
             <Ionicons name="notifications-outline" size={24} color="#000" />
             <View style={styles.badge}>
@@ -117,20 +122,20 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.sectionTitle}>Mais Vendidos!</Text>
           </TouchableOpacity>
 
-          <View style={styles.productsRow}>
-            <View style={styles.productCard}>
-              <View style={styles.imagePlaceholder}>
-                <Text style={{ color: "#fff" }}>Imagem</Text>
-              </View>
-              <Text style={styles.productName}>Produto 1</Text>
-            </View>
-
-            <View style={styles.productCard}>
-              <View style={styles.imagePlaceholder}>
-                <Text style={{ color: "#fff" }}>Imagem</Text>
-              </View>
-              <Text style={styles.productName}>Produto 2</Text>
-            </View>
+          <View style={styles.productsGrid}>
+            {mockProducts.map((product, index) => (
+              <CardItem
+                key={product.id}
+                title={product.title}
+                description={product.description}
+                price={product.price}
+                imageUrl={product.imageUrl}
+                discount={product.discount}
+                rating={product.rating}
+                style={styles.productCard}
+                onPress={() => navigation.navigate('CartScreen', { product })}
+              />
+            ))}
           </View>
         </ScrollView>
       </Animated.View>
@@ -141,22 +146,19 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#d9d9d9" },
 
+  // Header
   header: {
-    height: "20%",
+    height:"18%",  
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 30,
+    minHeight: 90,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
-
-  logo: {
-    width: 60,
-    height: 60,
-    resizeMode: "contain",
-    borderRadius: 1000,
-  },
+  logo: { width: 60, height: 60, resizeMode: "contain", borderRadius: 1000 },
   logoFallback: {
     width: 60,
     height: 60,
@@ -165,7 +167,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   greeting: {
     flex: 1,
     color: "#fff",
@@ -173,7 +174,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 10,
   },
-
   notification: {
     position: "relative",
     backgroundColor: "#fff",
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     borderRadius: 1000,
     paddingHorizontal: 5,
   },
-  badgeText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
+  badgeText: { color: "#fff", fontSize: 12, fontWeight: "bold" }, 
 
   containerConteudo: { paddingHorizontal: 10 },
   carousel: {
@@ -206,13 +206,15 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 20,
   },
-  productsRow: { flexDirection: "row", justifyContent: "space-between" },
+  productsGrid: { 
+    flexDirection: "row", 
+    flexWrap: "wrap", 
+    justifyContent: "space-between",
+    paddingHorizontal: 5
+  },
   productCard: {
     width: "48%",
-    backgroundColor: "#E0E0E0",
-    borderRadius: 10,
-    padding: 10,
-    alignItems: "center",
+    marginBottom: 15,
   },
   imagePlaceholder: {
     width: "100%",

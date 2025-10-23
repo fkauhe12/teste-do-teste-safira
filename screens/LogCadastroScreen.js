@@ -14,6 +14,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import axios from "axios";
+import StepIndicator from "../components/StepIndicator";
 
 let MaskedInput = TextInput;
 try {
@@ -90,15 +91,12 @@ export default function LogCadastroScreen() {
   };
 
   // ----------------------- renderização --------------------------
-  const StepIndicator = () => (
-    <View style={styles.stepIndicator}>
-      {[1, 2, 3].map((s) => (
-        <View
-          key={s}
-          style={[styles.stepCircle, step === s && styles.stepCircleActive]}
-        />
-      ))}
-    </View>
+  const renderStepIndicator = () => (
+    <StepIndicator
+      steps={3}
+      currentStep={step - 1}
+      style={styles.stepIndicator}
+    />
   );
 
   const Wrapper = Platform.OS === "web" ? View : KeyboardAvoidingView;
@@ -130,7 +128,7 @@ export default function LogCadastroScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.container}>
-            <StepIndicator />
+            {renderStepIndicator()}
             <Text style={styles.stepText}>Passo {step} de 3</Text>
 
             {/* ---------- STEP 1 ---------- */}
@@ -294,18 +292,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   stepIndicator: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 10,
+    marginVertical: 20,
   },
-  stepCircle: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#333",
-    marginHorizontal: 5,
-  },
-  stepCircleActive: { backgroundColor: "#007AFF" },
   stepText: {
     fontSize: 14,
     fontWeight: "600",

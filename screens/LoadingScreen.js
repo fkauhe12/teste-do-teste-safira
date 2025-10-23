@@ -10,9 +10,10 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-const logo = require("./assets/Logo_safira.png");
+const logo = require("../assets/images/Logo_safira.png");
 
-export default function LoadingScreen({ onFinish }) {
+
+export default function LoadingScreen({ navigation }) {
   const fadeContent = useRef(new Animated.Value(0)).current; // logo+texto
   const spinValue = useRef(new Animated.Value(0)).current;   // rotação
   const containerFade = useRef(new Animated.Value(1)).current; // gradiente final
@@ -56,8 +57,8 @@ export default function LoadingScreen({ onFinish }) {
         easing: Easing.in(Easing.cubic),
         useNativeDriver: true,
       }),
-    ]).start(() => onFinish && onFinish());
-  }, [fadeContent, containerFade, onFinish]);
+    ]).start(() => navigation.replace('Home'));
+  }, [fadeContent, containerFade, navigation]);
 
   const spin = spinValue.interpolate({
     inputRange: [0, 1],
