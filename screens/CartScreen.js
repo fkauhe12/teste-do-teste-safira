@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,33 +6,58 @@ import {
   TouchableOpacity,
   Image,
   Platform,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // 🧩 utilitário multiplataforma para a imagem
 const getCartIconSource = () => {
   try {
-    const img = require("../assets/icons/icon_car_vazio.png"); // <-- caminho ajustado
+    const img = require("../assets/icons/icon_car_vazio.png");
     if (Platform.OS === "web") {
       return { uri: img?.default ?? "../assets/icons/icon_car_vazio.png" };
     }
     return img;
   } catch {
-    // fallback leve, se algo der errado
     return { uri: "../assets/icons/icon_car_vazio.png" };
   }
 };
 
 export default function CartScreen({ navigation }) {
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+
+  useEffect(() => {
+    // Slide para cima ao abrir
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const closeModal = () => {
+    // Slide para baixo ao fechar
+    Animated.timing(slideAnim, {
+      toValue: SCREEN_HEIGHT,
+      duration: 800,
+      useNativeDriver: true,
+    }).start(() => navigation.goBack());
+  };
+
   return (
     <View style={styles.overlay}>
-      <View style={styles.container}>
+      {/* Overlay escuro atrás */}
+      <View style={styles.backgroundOverlay} />
+
+      <Animated.View
+        style={[styles.container, { transform: [{ translateY: slideAnim }] }]}
+      >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={closeModal}>
             <Ionicons
               name="arrow-back-sharp"
               size={24}
@@ -48,7 +73,7 @@ export default function CartScreen({ navigation }) {
           <Image source={getCartIconSource()} style={styles.imagem} />
           <Text style={styles.text}>Adicione Produtos</Text>
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -59,8 +84,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     backgroundColor: "transparent",
   },
+  backgroundOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
   container: {
-    height: "92%",
+    height: "93%",
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,

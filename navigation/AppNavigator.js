@@ -43,9 +43,21 @@ export default function AppNavigator() {
           <Stack.Screen name="Loading" component={LoadingScreen} />
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Search" component={SearchScreen} />
-          <Stack.Screen name="Cart" component={CartScreen} />
+          <Stack.Screen
+            name="Cart"
+            component={CartScreen}
+            options={{
+              presentation: "transparentModal", // mantém a Home visível atrás
+            }}
+          />
           <Stack.Screen name="More" component={MoreScreen} />
-          <Stack.Screen name="SAD" component={SadScreen} />
+          <Stack.Screen
+            name="SAD"
+            component={SadScreen}
+            options={{
+              presentation: "transparentModal", // mantém a Home visível atrás
+            }}
+          />
 
           {/* Tela de login como modal transparente */}
           <Stack.Screen
