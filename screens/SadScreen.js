@@ -11,11 +11,10 @@ import {
   FlatList,
   Keyboard,
   Animated,
-  SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets , SafeAreaProvider } from "react-native-safe-area-context";
 
 export default function SadScreen({ navigation }) {
   const [text, setText] = useState("");
@@ -66,8 +65,8 @@ export default function SadScreen({ navigation }) {
 
   const renderInput = () => (
     <LinearGradient
-      colors={["#3E57AC", "#0E2E98"]}
-      start={{ x: 0, y: 0 }}
+      colors={["#051d74ff", "#0E2E98", "#2051f3ff"]}
+      start={{ x: 0, y: 1 }}
       end={{ x: 1, y: 0 }}
       style={[
         styles.inputContainer,
@@ -88,7 +87,7 @@ export default function SadScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView
+    <SafeAreaProvider
       style={[
         styles.safe,
         {
@@ -157,7 +156,7 @@ export default function SadScreen({ navigation }) {
           </Animated.View>
         )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

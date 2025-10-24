@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#d9d9d9" },
 
   header: {
-    height: "18%",
+    height: "20%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

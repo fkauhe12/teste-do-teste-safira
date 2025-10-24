@@ -1,95 +1,51 @@
-import React, { useState, memo } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  FlatList,
   ScrollView,
+  Image,
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import GlobalBottomBar from '../components/GlobalBottomBar';
+import GlobalBottomBar from "../components/GlobalBottomBar";
+import { LinearGradient } from "expo-linear-gradient";
 
-const POPULAR_TERMS = [
-  "Dipirona","Paracetamol","Ibuprofeno","Omeprazol","Loratadina",
-  "Amoxicilina","Soro fisiológico","Vitamina C","Protetor solar",
-  "Fralda infantil","Álcool 70%","Termômetro",
-];
 
-const CATEGORIES = [
-  "Dor e Febre","Gripe e Resfriado","Alergia","Gastro",
-  "Dermocosméticos","Higiene Oral","Infantil","Vitaminas","Curativos","Genéricos",
-];
-
-const TOP_NOW = [
-  { id: "1", name: "Dipirona 500mg", searches: 1340 },
-  { id: "2", name: "Paracetamol 750mg", searches: 1275 },
-  { id: "3", name: "Ibuprofeno 400mg", searches: 1032 },
-  { id: "4", name: "Omeprazol 20mg", searches: 980 },
-  { id: "5", name: "Loratadina 10mg", searches: 812 },
-  { id: "6", name: "Vitamina C 1g", searches: 740 },
-  { id: "7", name: "Soro fisiológico 0,9%", searches: 705 },
-];
-
-const HeaderContent = memo(({ selected, onSelectTerm }) => (
-  <View>
-    <Text style={styles.sectionTitle}>
-      <Ionicons name="flame" size={18} color="#EF4444" /> Mais pesquisados
-    </Text>
-    <View style={styles.chipsWrap}>
-      {POPULAR_TERMS.map((term) => (
-        <TouchableOpacity
-          key={term}
-          style={[styles.chip, selected === term && styles.chipActive]}
-          onPress={() => onSelectTerm(term)}
-        >
-          <Text
-            style={[
-              styles.chipText,
-              selected === term && styles.chipTextActive,
-            ]}
-          >
-            {term}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-
-    <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Top do momento</Text>
-  </View>
-));
+// Dados
+import { categorias, produtos, maisPesquisados, topDoMomento } from "../data/produtos";
 
 const SearchScreen = ({ navigation }) => {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
-  const onSelectTerm = (term) => {
-    setSelected(term);
-    setQuery(term);
-  };
+  // Filtragem principal: busca + categoria
+  const filteredProducts = produtos.filter((item) => {
+    const matchesQuery = item.nome.toLowerCase().includes(query.toLowerCase());
+    const matchesCategory = selectedCategory
+      ? item.categoria === selectedCategory
+      : true;
+    return matchesQuery && matchesCategory;
+  });
 
-  return (
+    return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        {/* Cabeçalho */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#111" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Buscar</Text>
-          <View style={{ width: 36 }} />
-        </View>
-
-        {/* Search bar */}
+      {/* Cabeçalho com gradiente */}
+      <LinearGradient
+        colors={["#0E2E98", "#3E57AC", "#4873FF"]}
+        start={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#111" />
           <TextInput
             style={styles.input}
             value={query}
             onChangeText={setQuery}
-            placeholder="Digite aqui..."
+            placeholder="Digite o nome do produto..."
             placeholderTextColor="#666"
           />
           {query ? (
@@ -98,162 +54,175 @@ const SearchScreen = ({ navigation }) => {
             </TouchableOpacity>
           ) : null}
         </View>
+      </LinearGradient>
 
-        {/* Conteúdo */}
+      {/* Conteúdo com rolagem */}
+      <View style={styles.content}>
         <ScrollView style={styles.scrollContent}>
-          <HeaderContent selected={selected} onSelectTerm={onSelectTerm} />
-          
-          {/* TOP NOW Section */}
-          {TOP_NOW.map((item) => (
-            <TouchableOpacity key={item.id} style={styles.topItem}>
-              <View style={styles.topItemLeft}>
-                <Text style={styles.rank}>#{item.id}</Text>
-                <Text style={styles.topItemName}>{item.name}</Text>
-              </View>
-              <Text style={styles.searches}>{item.searches} buscas</Text>
-            </TouchableOpacity>
-          ))}
-          
-          {/* Categories */}
-          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Categorias</Text>
+          {/* Categorias */}
+          <Text style={styles.sectionTitle}>Categorias</Text>
           <View style={styles.categories}>
-            {CATEGORIES.map((category) => (
-              <TouchableOpacity key={category} style={styles.categoryItem}>
-                <Text style={styles.categoryText}>{category}</Text>
+            {categorias.map((cat) => (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.categoryItem,
+                  selectedCategory === cat.nome && styles.categoryActive,
+                ]}
+                onPress={() =>
+                  setSelectedCategory(
+                    selectedCategory === cat.nome ? null : cat.nome
+                  )
+                }
+              >
+                <Ionicons name={cat.icone} size={18} color={cat.cor} />
+                <Text style={styles.categoryText}>{cat.nome}</Text>
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Resultados */}
+          {(query.length > 0 || selectedCategory) && (
+            <>
+              <Text style={styles.sectionTitle}>Resultados</Text>
+              {filteredProducts.length === 0 ? (
+                <Text style={styles.noResults}>Nenhum produto encontrado.</Text>
+              ) : (
+                <View style={styles.productGrid}>
+                  {filteredProducts.map((item) => (
+                    <TouchableOpacity key={item.id} style={styles.productCard}>
+                      <Image source={{ uri: item.imageUrl }} style={styles.image} />
+                      <Text style={styles.productName}>{item.nome}</Text>
+                      <Text style={styles.productDesc}>{item.descricao}</Text>
+                      <Text style={styles.price}>R$ {item.preco.toFixed(2)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Mais pesquisados / Top do momento */}
+          {!query && !selectedCategory && (
+            <>
+              <Text style={styles.sectionTitle}>Mais pesquisados</Text>
+              <View style={styles.productGrid}>
+                {maisPesquisados.map((item) => (
+                  <TouchableOpacity key={item.id} style={styles.productCard}>
+                    <Image source={{ uri: item.imageUrl }} style={styles.image} />
+                    <Text style={styles.productName}>{item.nome}</Text>
+                    <Text style={styles.productDesc}>{item.descricao}</Text>
+                    <Text style={styles.price}>R$ {item.preco.toFixed(2)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.sectionTitle}>Top do momento</Text>
+              <View style={styles.productGrid}>
+                {topDoMomento.map((item) => (
+                  <TouchableOpacity key={item.id} style={styles.productCard}>
+                    <Image source={{ uri: item.imageUrl }} style={styles.image} />
+                    <Text style={styles.productName}>{item.nome}</Text>
+                    <Text style={styles.productDesc}>{item.descricao}</Text>
+                    <Text style={styles.price}>R$ {item.preco.toFixed(2)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
         </ScrollView>
       </View>
+
       <GlobalBottomBar currentRouteName="Search" navigate={navigation.navigate} />
     </View>
   );
+
 };
 
 export default SearchScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#d9d9d9"
-  },
-  content: {
-    flex: 1,
-    marginBottom: Platform.OS === "web" ? 70 : Platform.OS === "ios" ? 160 : 150
-  },
+  container: { flex: 1, backgroundColor: "#f2f2f2" },
+  content: { flex: 1, marginBottom: Platform.OS === "ios" ? 150 : 120 },
   header: {
+    height: "19%",
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    paddingBottom: 8,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee"
+    minHeight: 90,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 6
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111"
-  },
+  
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 30,
     backgroundColor: "#fff",
-    margin: 16,
-    marginTop: 8,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#eee"
+    borderColor: "#ddd",
   },
-  input: {
-    flex: 1,
-    color: "#111",
-    fontSize: 16
+  input: { 
+    flex: 1, 
+    fontSize: 16, 
+    color: "#111", 
+    marginLeft: 8,
   },
+  
+  scrollContent: { flex: 1 },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
     marginHorizontal: 16,
+    marginTop: 10,
     marginBottom: 8,
-    color: "#111"
-  },
-  scrollContent: {
-    flex: 1
-  },
-  chipsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginHorizontal: 8,
-    marginBottom: 4
-  },
-  chip: {
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    margin: 4
-  },
-  chipActive: {
-    backgroundColor: "#3B82F6"
-  },
-  chipText: {
-    color: "#4B5563",
-    fontSize: 14
-  },
-  chipTextActive: {
-    color: "#fff"
-  },
-  topItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-    padding: 12,
-    marginHorizontal: 16,
-    marginVertical: 4,
-    borderRadius: 8
-  },
-  topItemLeft: {
-    flexDirection: "row",
-    alignItems: "center"
-  },
-  rank: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#3B82F6",
-    marginRight: 8
-  },
-  topItemName: {
-    fontSize: 14,
-    color: "#111"
-  },
-  searches: {
-    fontSize: 12,
-    color: "#6B7280"
+    color: "#111",
   },
   categories: {
     flexDirection: "row",
     flexWrap: "wrap",
-    padding: 12
+    paddingHorizontal: 8,
   },
   categoryItem: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#fff",
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
-    margin: 4
+    borderRadius: 12,
+    margin: 4,
   },
-  categoryText: {
+  categoryActive: { backgroundColor: "#c8e6c9" },
+  categoryText: { marginLeft: 6, fontSize: 14, color: "#111" },
+  productGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+  },
+  productCard: {
+    width: "48%",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    marginBottom: 10,
+    padding: 8,
+    elevation: 2,
+  },
+  image: {
+    width: "100%",
+    height: 100,
+    borderRadius: 8,
+    resizeMode: "contain",
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 6,
     color: "#111",
-    fontSize: 14
-  }
+  },
+  productDesc: { fontSize: 12, color: "#555" },
+  price: { fontSize: 14, fontWeight: "700", color: "#2e7d32", marginTop: 4 },
+  noResults: { textAlign: "center", fontSize: 14, color: "#777", marginVertical: 20 },
 });

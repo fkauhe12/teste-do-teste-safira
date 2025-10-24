@@ -49,11 +49,11 @@ export default function GlobalBottomBar({ currentRouteName, navigate }) {
 
   return (
     <LinearGradient
-      colors={['#264AC0', '#1C368D', '#12235A']}
-      start={{ x: 0, y: 1 }}
+      colors={['#1b46d6ff', '#09216dff', '#12235A']}
+      start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}
       style={[
-        styles.bottomBar,
+        styles.bottomBar,    
         {
           height: BAR_HEIGHT + insets.bottom,
           paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 4 : 8),

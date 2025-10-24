@@ -8,12 +8,14 @@ export const anuncios = [
   },
   {
     id: 2,
+    URLImagem: { uri: 'https://img.freepik.com/vetores-premium/anuncie-o-plano-de-fundo-do-anuncio_118124-332.jpg' },
     titulo: "Promoção em Antigripais",
     descricao: "Leve 3, pague 2 em antigripais selecionados!",
     cor: "#BBDEFB",
   },
   {
     id: 3,
+    URLImagem: { uri: 'https://media.istockphoto.com/id/1365253471/pt/foto/empty-white-counter-with-pharmacy-drugstore-shelves-blurred-background.webp?b=1&s=170667a&w=0&k=20&c=3uYTklBYYLdG8iq8UlwhxV5TLkweY3tCQty5vLqJYc4=' },
     titulo: "Cuide da sua pele",
     descricao: "Hidratantes com até 30% de desconto.",
     cor: "#F8BBD0",
