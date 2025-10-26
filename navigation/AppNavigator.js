@@ -10,7 +10,6 @@ import MoreScreen from "../screens/MoreScreen";
 import SearchScreen from "../screens/SearchScreen";
 import SadScreen from "../screens/SadScreen";
 import LogScreen from "../screens/LogScreen";
-import LogCadastroScreen from "../screens/LogCadastroScreen";
 import LoadingScreen from "../screens/LoadingScreen";
 
 import GlobalBottomBar from "../components/GlobalBottomBar";
@@ -68,7 +67,6 @@ export default function AppNavigator() {
               cardStyle: { backgroundColor: "transparent" },
             }}
           />
-          <Stack.Screen name="LogCadastro" component={LogCadastroScreen} />
         </Stack.Navigator>
       </NavigationContainer>
 
