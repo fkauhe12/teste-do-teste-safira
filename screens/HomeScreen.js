@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   Platform,
   StatusBar,
   Animated,
-  Easing,
   Alert,
   Dimensions,
   ImageBackground,
@@ -25,7 +24,6 @@ import { mockUser } from "../data/mockData";
 
 const { width } = Dimensions.get("window");
 
-// 🧩 Imagem compatível com Web e mobile
 const getLogoSource = () => {
   try {
     const img = require("../assets/images/Logo_safira.png");
@@ -38,44 +36,101 @@ const getLogoSource = () => {
   }
 };
 
+const PaginationDots = ({ total, activeIndex, onDotPress }) => (
+  <View style={styles.dotContainer}>
+    {Array.from({ length: total }).map((_, index) => (
+      <TouchableOpacity
+        key={index}
+        onPress={() => onDotPress(index)}
+        style={[
+          styles.dot,
+          activeIndex === index ? styles.dotActive : styles.dotInactive,
+        ]}
+      />
+    ))}
+  </View>
+);
+
 export default function HomeScreen({ navigation }) {
   const logoSource = getLogoSource();
   const insets = useSafeAreaInsets();
+  const numAnuncios = anuncios.length;
+  const AUTO_SCROLL_INTERVAL = 4000;
+  const loopItemWidth = width * 0.9 + 20;
 
-  // Animações de zoom
+  const [activeIndex, setActiveIndex] = useState(1);
+  const scrollViewRef = useRef(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  const handleZoomIn = () => {
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(scaleAnim, {
-          toValue: 1.1,
-          duration: 250,
-          easing: Easing.out(Easing.exp),
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 0.9,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 250,
-          easing: Easing.in(Easing.exp),
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
+  const loopedAnuncios =
+    numAnuncios > 0
+      ? [anuncios[numAnuncios - 1], ...anuncios, anuncios[0]]
+      : [];
+
+  // Auto-scroll fixado
+  useEffect(() => {
+    if (numAnuncios === 0) return;
+
+    let intervalId;
+
+    const startAutoScroll = () => {
+      intervalId = setInterval(() => {
+        setActiveIndex((prevIndex) => {
+          let nextIndex = prevIndex + 1;
+          scrollViewRef.current?.scrollTo({
+            x: nextIndex * loopItemWidth,
+            animated: true,
+          });
+          return nextIndex;
+        });
+      }, AUTO_SCROLL_INTERVAL);
+    };
+
+    startAutoScroll();
+
+    return () => clearInterval(intervalId);
+  }, [numAnuncios, loopItemWidth]);
+
+  // Corrige o loop ao chegar no fim/início
+  const handleMomentumScrollEnd = (event) => {
+    const offset = event.nativeEvent.contentOffset.x;
+    const newIndex = Math.round(offset / loopItemWidth);
+
+    if (newIndex !== activeIndex) setActiveIndex(newIndex);
+
+    if (newIndex === numAnuncios + 1) {
+      // voltou pro primeiro real
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          x: loopItemWidth,
+          animated: false,
+        });
+        setActiveIndex(1);
+      }, 100);
+    } else if (newIndex === 0) {
+      // voltou pro último real
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          x: numAnuncios * loopItemWidth,
+          animated: false,
+        });
+        setActiveIndex(numAnuncios);
+      }, 100);
+    }
   };
+
+  const handleDotPress = (index) => {
+    const targetIndexInLoop = index + 1;
+    const xOffset = targetIndexInLoop * loopItemWidth;
+    scrollViewRef.current?.scrollTo({
+      x: xOffset,
+      animated: true,
+    });
+    setActiveIndex(targetIndexInLoop);
+  };
+
+  const handleZoomIn = () => {};
 
   return (
     <SafeAreaProvider style={styles.container} edges={["top", "left", "right"]}>
@@ -90,7 +145,6 @@ export default function HomeScreen({ navigation }) {
             Platform.OS === "web" ? 70 : Platform.OS === "ios" ? 60 : 60,
         }}
       >
-        {/* HEADER */}
         <LinearGradient
           colors={["#0E2E98", "#3E57AC", "#4873FF"]}
           start={{ x: 0, y: 1 }}
@@ -113,7 +167,6 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </LinearGradient>
 
-        {/* CONTEÚDO */}
         <ScrollView
           contentContainerStyle={[
             styles.containerConteudo,
@@ -121,36 +174,47 @@ export default function HomeScreen({ navigation }) {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* CARROSSEL DE ANÚNCIOS */}
           <View style={{ marginTop: 10 }}>
             <Text style={styles.carouselTitle}>Anúncios de Recomendação</Text>
+
             <ScrollView
+              ref={scrollViewRef}
               horizontal
-              pagingEnabled
               showsHorizontalScrollIndicator={false}
               style={styles.carousel}
+              pagingEnabled
+              onMomentumScrollEnd={handleMomentumScrollEnd}
+              scrollEventThrottle={16}
             >
-              {anuncios.map((anuncio) => (
+              {loopedAnuncios.map((anuncio, index) => (
                 <ImageBackground
-                  key={anuncio.id}
+                  key={index}
                   source={anuncio.URLImagem}
                   style={[styles.anuncioCard, { width: width * 0.9 }]}
                   imageStyle={{ borderRadius: 15 }}
                 >
-                  {/* Gradiente escuro para destacar o texto */}
                   <LinearGradient
                     colors={["rgba(0,0,0,0.1)", "transparent"]}
                     style={styles.anuncioOverlay}
                   >
                     <Text style={styles.anuncioTitulo}>{anuncio.titulo}</Text>
-                    <Text style={styles.anuncioDescricao}>{anuncio.descricao}</Text>
+                    <Text style={styles.anuncioDescricao}>
+                      {anuncio.descricao}
+                    </Text>
                   </LinearGradient>
                 </ImageBackground>
               ))}
             </ScrollView>
+
+            {numAnuncios > 1 && (
+              <PaginationDots
+                total={numAnuncios}
+                activeIndex={activeIndex - 1}
+                onDotPress={handleDotPress}
+              />
+            )}
           </View>
 
-          {/* SEÇÃO MAIS VENDIDOS */}
           <TouchableOpacity onPress={handleZoomIn} activeOpacity={0.8}>
             <Text style={styles.sectionTitle}>Mais Vendidos!</Text>
           </TouchableOpacity>
@@ -178,10 +242,7 @@ export default function HomeScreen({ navigation }) {
                       {
                         text: "Sim, adicionar",
                         onPress: () => {
-                          Alert.alert(
-                            "Sucesso",
-                            "Produto adicionado à saloca!"
-                          );
+                          Alert.alert("Sucesso", "Produto adicionado à saloca!");
                           navigation.navigate("CartScreen", {
                             product: produto,
                           });
@@ -201,7 +262,6 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#d9d9d9" },
-
   header: {
     height: "20%",
     flexDirection: "row",
@@ -244,17 +304,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   badgeText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
-
   containerConteudo: { paddingHorizontal: 10 },
-
-  carousel: {
-    marginTop: 10,
-  },
+  carousel: { marginTop: 10 },
   carouselTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
     marginBottom: 10,
+    marginLeft: 10,
   },
   anuncioCard: {
     borderRadius: 15,
@@ -284,15 +341,33 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingHorizontal: 15,
   },
-
-
+  dotContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginHorizontal: 5,
+  },
+  dotInactive: { backgroundColor: "#ccc" },
+  dotActive: {
+    backgroundColor: "#0E2E98",
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 10,
     marginTop: 20,
+    marginLeft: 10,
   },
-
   productsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
