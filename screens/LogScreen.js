@@ -9,30 +9,51 @@ import {
   Alert,
   Animated,
   KeyboardAvoidingView,
-  ScrollView,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets, SafeAreaProvider } from "react-native-safe-area-context";
 import axios from "axios";
 import StepIndicator from "../components/StepIndicator";
 
-// ====> LOGIN + CADASTRO COM FLIP CARD <====
+// ====> LOGIN + CADASTRO COM FLIP CARD 3D <====
 export default function LogScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [isFlipped, setIsFlipped] = useState(false);
   const flipAnim = useRef(new Animated.Value(0)).current;
+  const [isAnimating, setIsAnimating] = useState(false);
 
-  // ======== FLIP ANIMATION (RÁPIDO E FLUIDO) ========
+  // ====> Iluminação e profundidade (3D)
+  const lightAnim = useRef(new Animated.Value(0)).current;
+
+  // ======== FLIP ANIMATION ========
   const flipCard = () => {
-    Animated.timing(flipAnim, {
-      toValue: isFlipped ? 0 : 180,
-      duration: 500 , // rápido e fluido
-      useNativeDriver: true,
-    }).start(() => setIsFlipped(!isFlipped));
+    if (isAnimating) return;
+    setIsAnimating(true);
+
+    const toValue = isFlipped ? 0 : 180;
+
+    Animated.parallel([
+      Animated.timing(flipAnim, {
+        toValue,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.timing(lightAnim, {
+        toValue: isFlipped ? 0 : 1,
+        duration: 350,
+        useNativeDriver: false,
+      }),
+    ]).start(() => {
+      setIsFlipped(!isFlipped);
+      setIsAnimating(false);
+      lightAnim.setValue(0); // reset brilho
+    });
   };
 
+  // ======== INTERPOLAÇÕES 3D ========
   const frontAnimatedStyle = {
     transform: [
+      { perspective: 1000 },
       {
         rotateY: flipAnim.interpolate({
           inputRange: [0, 180],
@@ -40,17 +61,32 @@ export default function LogScreen({ navigation }) {
         }),
       },
     ],
+    shadowOpacity: flipAnim.interpolate({
+      inputRange: [0, 90, 180],
+      outputRange: [0.3, 0.6, 0.3],
+    }),
   };
+
   const backAnimatedStyle = {
     transform: [
+      { perspective: 1000 },
       {
         rotateY: flipAnim.interpolate({
           inputRange: [0, 180],
-          outputRange: ["180deg", "360deg"],
+          outputRange: ["-180deg", "0deg"],
         }),
       },
     ],
+    shadowOpacity: flipAnim.interpolate({
+      inputRange: [0, 90, 180],
+      outputRange: [0.3, 0.6, 0.3],
+    }),
   };
+
+  const lightInterpolate = lightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["rgba(255,255,255,0)", "rgba(255,255,255,0.2)"],
+  });
 
   // ======== LOGIN ========
   const [identifier, setIdentifier] = useState("");
@@ -126,6 +162,7 @@ export default function LogScreen({ navigation }) {
     }
     setStep(step + 1);
   };
+
   const finish = () => {
     alert("Cadastro concluído! 🎉");
     flipCard();
@@ -148,17 +185,20 @@ export default function LogScreen({ navigation }) {
             { paddingTop: insets.top, paddingBottom: insets.bottom },
           ]}
         />
-        <ScrollView
-          contentContainerStyle={styles.centerContainer}
-          keyboardShouldPersistTaps="handled"
-        >
+        <View style={styles.centerContainer}>
           {/* ======== FRONT: LOGIN ======== */}
           <Animated.View
-            style={[styles.card, frontAnimatedStyle, { opacity: isFlipped ? 0 : 1 }]}
+            style={[styles.card, frontAnimatedStyle, { zIndex: isFlipped ? 0 : 10 }]}
           >
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.lightOverlay, { backgroundColor: lightInterpolate }]}
+            />
+
             <TouchableOpacity
               style={styles.backButtonInside}
               onPress={() => navigation.goBack()}
+              disabled={isAnimating}
             >
               <Ionicons name="arrow-back" size={24} color="#fff" />
               <Text style={styles.backText}>Voltar</Text>
@@ -178,6 +218,7 @@ export default function LogScreen({ navigation }) {
                 setIdentifier(t);
                 setErrors((e) => ({ ...e, identifier: "" }));
               }}
+              editable={!isAnimating}
             />
             {errors.identifier ? (
               <Text style={styles.errorText}>{errors.identifier}</Text>
@@ -198,10 +239,12 @@ export default function LogScreen({ navigation }) {
                   setPassword(t);
                   setErrors((e) => ({ ...e, password: "" }));
                 }}
+                editable={!isAnimating}
               />
               <TouchableOpacity
                 style={styles.eyeButton}
                 onPress={() => setShowPassword((s) => !s)}
+                disabled={isAnimating}
               >
                 <Ionicons
                   name={showPassword ? "eye-off" : "eye"}
@@ -214,27 +257,45 @@ export default function LogScreen({ navigation }) {
               <Text style={styles.errorText}>{errors.password}</Text>
             ) : null}
 
-            <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleLogin}
+              disabled={isAnimating}
+            >
               <Text style={styles.buttonText}>Entrar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.linkButton}
               onPress={() => Alert.alert("Recuperar Senha", "Em desenvolvimento.")}
+              disabled={isAnimating}
             >
               <Text style={styles.linkText}>Esqueceu sua senha?</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.linkButton} onPress={flipCard}>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={flipCard}
+              disabled={isAnimating}
+            >
               <Text style={styles.linkText}>Criar Conta</Text>
             </TouchableOpacity>
           </Animated.View>
 
           {/* ======== BACK: CADASTRO ======== */}
           <Animated.View
-            style={[styles.card, styles.cardBack, backAnimatedStyle, { opacity: isFlipped ? 1 : 0 }]}
+            style={[styles.card, styles.cardBack, backAnimatedStyle, { zIndex: isFlipped ? 10 : 0 }]}
           >
-            <TouchableOpacity style={styles.backButtonInside} onPress={flipCard}>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.lightOverlay, { backgroundColor: lightInterpolate }]}
+            />
+
+            <TouchableOpacity
+              style={styles.backButtonInside}
+              onPress={flipCard}
+              disabled={isAnimating}
+            >
               <Ionicons name="arrow-back" size={24} color="#fff" />
               <Text style={styles.backText}>Voltar</Text>
             </TouchableOpacity>
@@ -242,6 +303,7 @@ export default function LogScreen({ navigation }) {
             <StepIndicator steps={3} currentStep={step - 1} style={{ marginBottom: 15 }} />
             <Text style={styles.stepText}>Passo {step} de 3</Text>
 
+            {/* ===> Passos do cadastro (inalterados) */}
             {step === 1 && (
               <>
                 <Text style={styles.title}>Criar Conta</Text>
@@ -372,7 +434,7 @@ export default function LogScreen({ navigation }) {
               )}
             </View>
           </Animated.View>
-        </ScrollView>
+        </View>
       </Wrapper>
     </SafeAreaProvider>
   );
@@ -381,7 +443,7 @@ export default function LogScreen({ navigation }) {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.6)", // 👈 fundo mais leve e translúcido
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   centerContainer: {
     flexGrow: 1,
@@ -396,60 +458,60 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 23,
     maxWidth: 480,
-    backfaceVisibility: "hidden",
     shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 10,
+    backfaceVisibility: "hidden",
   },
-  cardBack: { position: "absolute" },
-  backButtonInside: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  lightOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 18,
+  },
+  cardBack: {
+    alignSelf: "center",
+  },
+  backButtonInside: { flexDirection: "row", alignItems: "center", marginBottom: 15 },
   backText: { color: "#fff", marginLeft: 6, fontSize: 16 },
-  logo: { alignItems: "center", marginBottom: 10 },
-  title: { fontSize: 20, fontWeight: "700", color: "#fff", textAlign: "center", marginBottom: 10 },
-  
+  logo: { alignItems: "center", marginBottom: 15 },
+  title: { fontSize: 22, fontWeight: "700", color: "#fff", textAlign: "center", marginBottom: 15 },
   input: {
     backgroundColor: "#333",
     color: "#fff",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 12,
   },
-  passwordContainer: { flexDirection: "row", alignItems: "center" },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#333",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
   eyeButton: { position: "absolute", right: 12, padding: 8 },
   primaryButton: {
     backgroundColor: "#007AFF",
-    padding: 14,
-    borderRadius: 10,
+    padding: 16,
+    borderRadius: 12,
     alignItems: "center",
-    marginVertical: 12,
+    marginVertical: 15,
   },
   buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  linkButton: { alignItems: "center", paddingVertical: 6 },
-  
-  linkText: { 
-    color: "#1E90FF", 
-    fontSize: 18, 
-    fontWeight: "bold", 
-  
-  },
-  
-  stepText: { color: "#fff", textAlign: "center", marginBottom: 10 },
-  buttons: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  linkButton: { alignItems: "center", paddingVertical: 8 },
+  linkText: { color: "#1E90FF", fontSize: 16, fontWeight: "500" },
+  stepText: { color: "#fff", textAlign: "center", marginBottom: 15 },
+  buttons: { flexDirection: "row", justifyContent: "space-between", marginTop: 15 },
   button: {
     flex: 1,
     backgroundColor: "#007AFF",
     paddingVertical: 14,
     marginHorizontal: 5,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: "center",
   },
-  backButton: { backgroundColor: "#999" },
+  backButton: { backgroundColor: "#666" },
   backButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  
-  errorText: { 
-    color: "#e63946", 
-    fontSize: 12, 
-    textAlign: "center", 
-    marginBottom: 5 },
+  errorText: { color: "#e63946", fontSize: 13, textAlign: "center", marginBottom: 8 },
 });
