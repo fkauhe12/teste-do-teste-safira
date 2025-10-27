@@ -20,7 +20,10 @@ import CardItem from "../components/CardItem";
 import GlobalBottomBar from "../components/GlobalBottomBar";
 import { produtos } from "../data/produtos";
 import { anuncios } from "../data/anuncios";
-import { mockUser } from "../data/mockData";
+// import { mockUser } from "../data/mockData"; // removido
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "../services/firebase";
+import { ref, get } from "firebase/database";
 
 const { width } = Dimensions.get("window");
 
@@ -34,6 +37,31 @@ const getLogoSource = () => {
   } catch {
     return { uri: "../assets/images/Logo_safira.png" };
   }
+};
+
+// conectores comuns em nomes PT-BR que não contam como sobrenome
+const CONNECTORS = new Set(["da", "de", "do", "das", "dos", "e", "di", "du", "del", "della", "van", "von"]);
+const stripAccents = (s = "") => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const capitalize = (s = "") => {
+  const clean = stripAccents(s.toLowerCase());
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+};
+const getShortName = (fullName = "") => {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return capitalize(parts[0]);
+
+  const first = parts[0];
+  let last = parts[parts.length - 1];
+
+  for (let i = parts.length - 1; i >= 1; i--) {
+    const p = stripAccents(parts[i]).toLowerCase();
+    if (!CONNECTORS.has(p)) {
+      last = parts[i];
+      break;
+    }
+  }
+  return `${capitalize(first)} ${capitalize(last)}`;
 };
 
 const PaginationDots = ({ total, activeIndex, onDotPress }) => (
@@ -59,6 +87,7 @@ export default function HomeScreen({ navigation }) {
   const loopItemWidth = width * 0.9 + 20;
 
   const [activeIndex, setActiveIndex] = useState(1);
+  const [greetingName, setGreetingName] = useState("");
   const scrollViewRef = useRef(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -68,12 +97,41 @@ export default function HomeScreen({ navigation }) {
       ? [anuncios[numAnuncios - 1], ...anuncios, anuncios[0]]
       : [];
 
+  // Busca nome do usuário logado
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setGreetingName("");
+        return;
+      }
+      try {
+        const snap = await get(ref(db, `users/${user.uid}`));
+        const fullName =
+          (snap.exists() && snap.val().fullName) ||
+          user.displayName ||
+          "";
+        const short = getShortName(fullName);
+
+        if (short) {
+          setGreetingName(short); // Ex.: "Felipe Modena"
+        } else if (user.email) {
+          setGreetingName(user.email.split("@")[0]);
+        } else {
+          setGreetingName("");
+        }
+      } catch (e) {
+        const fallback = user.displayName || user.email?.split("@")[0] || "";
+        setGreetingName(fallback);
+      }
+    });
+    return () => unsub();
+  }, []);
+
   // Auto-scroll fixado
   useEffect(() => {
     if (numAnuncios === 0) return;
 
     let intervalId;
-
     const startAutoScroll = () => {
       intervalId = setInterval(() => {
         setActiveIndex((prevIndex) => {
@@ -88,7 +146,6 @@ export default function HomeScreen({ navigation }) {
     };
 
     startAutoScroll();
-
     return () => clearInterval(intervalId);
   }, [numAnuncios, loopItemWidth]);
 
@@ -100,7 +157,6 @@ export default function HomeScreen({ navigation }) {
     if (newIndex !== activeIndex) setActiveIndex(newIndex);
 
     if (newIndex === numAnuncios + 1) {
-      // voltou pro primeiro real
       setTimeout(() => {
         scrollViewRef.current?.scrollTo({
           x: loopItemWidth,
@@ -109,7 +165,6 @@ export default function HomeScreen({ navigation }) {
         setActiveIndex(1);
       }, 100);
     } else if (newIndex === 0) {
-      // voltou pro último real
       setTimeout(() => {
         scrollViewRef.current?.scrollTo({
           x: numAnuncios * loopItemWidth,
@@ -131,6 +186,8 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleZoomIn = () => {};
+
+  const greetingText = `Olá, ${greetingName || "Visitantes"}!`;
 
   return (
     <SafeAreaProvider style={styles.container} edges={["top", "left", "right"]}>
@@ -158,7 +215,7 @@ export default function HomeScreen({ navigation }) {
               <Text style={{ color: "#fff", fontWeight: "bold" }}>Logo</Text>
             </View>
           )}
-          <Text style={styles.greeting}>Olá, {mockUser.name}!</Text>
+          <Text style={styles.greeting}>{greetingText}</Text>
           <TouchableOpacity style={styles.notification}>
             <Ionicons name="notifications-outline" size={24} color="#000" />
             <View style={styles.badge}>
@@ -379,4 +436,3 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
 });
-
