@@ -162,6 +162,10 @@ export default function LogScreen({ navigation }) {
   const [state, setState] = useState("");
   const [houseNumber, setHouseNumber] = useState("");
 
+  // Olho nas senhas (cadastro)
+  const [showSenha, setShowSenha] = useState(false);
+  const [showConfirmSenha, setShowConfirmSenha] = useState(false);
+
   useEffect(() => {
     if (zip.length === 8) {
       axios
@@ -444,24 +448,57 @@ export default function LogScreen({ navigation }) {
           {step === 2 && (
             <>
               <Text style={styles.title}>Crie uma senha</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Senha"
-                value={senha}
-                onChangeText={setSenha}
-                secureTextEntry
-                placeholderTextColor="#888"
-                editable={!isAnimating && !loading}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Confirmar senha"
-                value={confirmSenha}
-                onChangeText={setConfirmSenha}
-                secureTextEntry
-                placeholderTextColor="#888"
-                editable={!isAnimating && !loading}
-              />
+
+              {/* Senha */}
+              <View style={[styles.passwordContainer, { marginBottom: 12 }]}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  placeholder="Senha"
+                  value={senha}
+                  onChangeText={setSenha}
+                  secureTextEntry={!showSenha}
+                  placeholderTextColor="#888"
+                  editable={!isAnimating && !loading}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowSenha((s) => !s)}
+                  disabled={isAnimating || loading}
+                >
+                  <Ionicons
+                    name={showSenha ? "eye-off" : "eye"}
+                    size={22}
+                    color="#ccc"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Confirmar senha */}
+              <View style={[styles.passwordContainer, { marginBottom: 12 }]}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  placeholder="Confirmar senha"
+                  value={confirmSenha}
+                  onChangeText={setConfirmSenha}
+                  secureTextEntry={!showConfirmSenha}
+                  placeholderTextColor="#888"
+                  editable={!isAnimating && !loading}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowConfirmSenha((s) => !s)}
+                  disabled={isAnimating || loading}
+                >
+                  <Ionicons
+                    name={showConfirmSenha ? "eye-off" : "eye"}
+                    size={22}
+                    color="#ccc"
+                  />
+                </TouchableOpacity>
+              </View>
+
               {passwordValid === false && (
                 <Text style={styles.errorText}>
                   Senha deve ter 8 caracteres, 1 maiúscula, 1 minúscula e 1 número
