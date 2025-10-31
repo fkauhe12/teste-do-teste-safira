@@ -6,37 +6,63 @@
     "orientation": "portrait",
     "icon": "./assets/icons/icon.png",
     "userInterfaceStyle": "light",
+
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fkauhe12.testessafira",
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch"],
+        "UIViewControllerBasedStatusBarAppearance": false
+      }
     },
+
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+
+      "package": "com.fkauhe12.testessafira",
+      "edgeToEdgeEnabled": true,
+      
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+
+
+      "versionCode": 1
     },
+
     "web": {
       "bundler": "metro",
       "favicon": "./assets/icons/favicon.png"
     },
+
     "plugins": [
       "expo-font"
     ],
+
     "extra": {
       "eas": {
         "projectId": "bf7c6868-4fc2-47e5-b410-0eff22398a5b"
       }
     },
+
     "owner": "fkauhe12",
+
+
     "runtimeVersion": {
       "policy": "appVersion"
     },
+
     "updates": {
       "url": "https://u.expo.dev/bf7c6868-4fc2-47e5-b410-0eff22398a5b"
     }

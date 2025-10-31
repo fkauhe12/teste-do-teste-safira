@@ -1,4 +1,4 @@
-// LoadingScreen.js
+// screens/LoadingScreen.js
 import React, { useEffect, useRef } from "react";
 import {
   StyleSheet,
@@ -12,16 +12,17 @@ import { LinearGradient } from "expo-linear-gradient";
 
 const logo = require("../assets/images/Logo_safira.png");
 
-export default function LoadingScreen({ navigation }) {
-  const fadeSpinner = useRef(new Animated.Value(1)).current; // controle do spinner
-  const fadeLogo = useRef(new Animated.Value(0)).current; // controle do fade da logo
-  const spinValue = useRef(new Animated.Value(0)).current; // rotação da borda
-  const pulseValue = useRef(new Animated.Value(1)).current; // efeito "zoom" da logo
+export default function LoadingScreen({ navigation, onFinish }) {
+  // animações
+  const fadeSpinner = useRef(new Animated.Value(1)).current;
+  const fadeLogo = useRef(new Animated.Value(0)).current;
+  const spinValue = useRef(new Animated.Value(0)).current;
+  const pulseValue = useRef(new Animated.Value(1)).current;
   const containerFade = useRef(new Animated.Value(1)).current;
 
-  // 🔁 rotação infinita do círculo
+  // rotação infinita do círculo
   useEffect(() => {
-    const spinLoop = Animated.loop(
+    const loop = Animated.loop(
       Animated.timing(spinValue, {
         toValue: 1,
         duration: 1000,
@@ -29,13 +30,13 @@ export default function LoadingScreen({ navigation }) {
         useNativeDriver: true,
       })
     );
-    spinLoop.start();
-    return () => spinLoop.stop();
-  }, [spinValue]);
+    loop.start();
+    return () => loop.stop();
+  }, []);
 
-  // 💓 efeito de "zoom pulsante" (sobe e desce o scale)
+  // efeito de "zoom pulsante" da logo
   useEffect(() => {
-    const pulseLoop = Animated.loop(
+    const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseValue, {
           toValue: 1.1,
@@ -51,14 +52,14 @@ export default function LoadingScreen({ navigation }) {
         }),
       ])
     );
-    pulseLoop.start();
-    return () => pulseLoop.stop();
-  }, [pulseValue]);
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
 
-  // 🎬 sequência de transição
+  // sequência completa
   useEffect(() => {
     Animated.sequence([
-      Animated.delay(1500), // mostra o spinner sozinho
+      Animated.delay(1500),
       Animated.parallel([
         Animated.timing(fadeSpinner, {
           toValue: 0,
@@ -80,8 +81,15 @@ export default function LoadingScreen({ navigation }) {
         easing: Easing.in(Easing.cubic),
         useNativeDriver: true,
       }),
-    ]).start(() => navigation.replace("Home"));
-  }, [fadeSpinner, fadeLogo, containerFade, navigation]);
+    ]).start(() => {
+      // ao final da animação
+      if (typeof onFinish === "function") {
+        onFinish();
+      } else {
+        navigation?.replace?.("Home");
+      }
+    });
+  }, [navigation, onFinish]);
 
   const spin = spinValue.interpolate({
     inputRange: [0, 1],
@@ -96,18 +104,15 @@ export default function LoadingScreen({ navigation }) {
         end={{ x: 1, y: 1 }}
         style={styles.container}
       >
-        {/* 🔵 Spinner (roda primeiro) */}
+        {/* spinner */}
         <Animated.View
           style={[
             styles.spinner,
-            {
-              opacity: fadeSpinner,
-              transform: [{ rotate: spin }],
-            },
+            { opacity: fadeSpinner, transform: [{ rotate: spin }] },
           ]}
         />
 
-        {/* 💠 Logo redonda com efeito pulsante */}
+        {/* logo */}
         <Animated.View
           style={{
             alignItems: "center",
@@ -147,7 +152,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 140,
     height: 140,
-    borderRadius: 70, // redonda
+    borderRadius: 70,
     resizeMode: "cover",
     marginBottom: 20,
   },

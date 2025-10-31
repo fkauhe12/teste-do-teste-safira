@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,33 +6,80 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Image,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import GlobalBottomBar from "../components/GlobalBottomBar";
 import { LinearGradient } from "expo-linear-gradient";
-
-
-// Dados
-import { categorias, produtos, maisPesquisados, topDoMomento } from "../data/produtos";
+import GlobalBottomBar from "../components/GlobalBottomBar";
+import CardItem from "../components/CardItem";
+import { firestoreDb } from "../services/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 const SearchScreen = ({ navigation }) => {
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [produtos, setProdutos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Filtragem principal: busca + categoria
+  // 🔥 Carrega produtos e monta categorias automáticas
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const produtosSnap = await getDocs(collection(firestoreDb, "produtos"));
+        const produtosData = produtosSnap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        const categoriasSet = new Set(
+          produtosData.map((p) => p.categoria).filter(Boolean)
+        );
+        const categoriasData = Array.from(categoriasSet).map((nome) => ({
+          id: nome,
+          nome,
+          icone: "pricetag-outline",
+          cor: "#4873FF",
+        }));
+
+        setProdutos(produtosData);
+        setCategorias(categoriasData);
+      } catch (error) {
+        console.error("⚠️ Erro ao carregar dados:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // 🔍 Filtro por texto e categoria
   const filteredProducts = produtos.filter((item) => {
-    const matchesQuery = item.nome.toLowerCase().includes(query.toLowerCase());
+    const matchesQuery =
+      item.nome?.toLowerCase().includes(query.toLowerCase()) || false;
     const matchesCategory = selectedCategory
       ? item.categoria === selectedCategory
       : true;
     return matchesQuery && matchesCategory;
   });
 
+  // 🔥 Listas especiais
+  const topDoMomento = produtos.filter((p) => p.topDoMomento);
+  const maisPesquisados = produtos.filter((p) => p.maisPesquisado);
+
+  if (loading) {
     return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0E2E98" />
+        <Text>Carregando produtos...</Text>
+      </View>
+    );
+  }
+
+  return (
     <View style={styles.container}>
-      {/* Cabeçalho com gradiente */}
+      {/* 🔵 Cabeçalho */}
       <LinearGradient
         colors={["#0E2E98", "#3E57AC", "#4873FF"]}
         start={{ x: 0, y: 1 }}
@@ -56,94 +103,143 @@ const SearchScreen = ({ navigation }) => {
         </View>
       </LinearGradient>
 
-      {/* Conteúdo com rolagem */}
+      {/* 🧾 Conteúdo */}
       <View style={styles.content}>
         <ScrollView style={styles.scrollContent}>
-          {/* Categorias */}
+          {/* 🏷️ Categorias */}
           <Text style={styles.sectionTitle}>Categorias</Text>
           <View style={styles.categories}>
-            {categorias.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryItem,
-                  selectedCategory === cat.nome && styles.categoryActive,
-                ]}
-                onPress={() =>
-                  setSelectedCategory(
-                    selectedCategory === cat.nome ? null : cat.nome
-                  )
-                }
-              >
-                <Ionicons name={cat.icone} size={18} color={cat.cor} />
-                <Text style={styles.categoryText}>{cat.nome}</Text>
-              </TouchableOpacity>
-            ))}
+            {categorias.length === 0 ? (
+              <Text style={{ marginLeft: 16, color: "#777" }}>
+                Nenhuma categoria encontrada.
+              </Text>
+            ) : (
+              categorias.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.categoryItem,
+                    selectedCategory === cat.nome && styles.categoryActive,
+                  ]}
+                  onPress={() =>
+                    setSelectedCategory(
+                      selectedCategory === cat.nome ? null : cat.nome
+                    )
+                  }
+                >
+                  <Ionicons
+                    name={cat.icone || "pricetag-outline"}
+                    size={18}
+                    color={cat.cor || "#000"}
+                  />
+                  <Text style={styles.categoryText}>{cat.nome}</Text>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
 
-          {/* Resultados */}
-          {(query.length > 0 || selectedCategory) && (
+          {/* 🛍️ Produtos — AGORA EM SCROLL HORIZONTAL */}
+          <Text style={styles.sectionTitle}>
+            {selectedCategory ? selectedCategory : "Produtos"}
+          </Text>
+          {filteredProducts.length === 0 ? (
+            <Text style={styles.noResults}>Nenhum produto encontrado.</Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            >
+              {filteredProducts.map((item) => (
+                <CardItem
+                  key={item.id}
+                  title={item.nome}
+                  description={item.descricao}
+                  price={Number(item.preco)}
+                  imageUrl={item.imageUrl}
+                  discount={item.desconto || 0}
+                  rating={item.rating || 0}
+                  onPress={() =>
+                    navigation.navigate("ProductDetail", { produto: item })
+                  }
+                  onAdd={() => console.log(`Adicionado: ${item.nome}`)}
+                  style={styles.horizontalCard}
+                />
+              ))}
+            </ScrollView>
+          )}
+
+          {/* ⭐ Top do momento */}
+          {topDoMomento.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>Resultados</Text>
-              {filteredProducts.length === 0 ? (
-                <Text style={styles.noResults}>Nenhum produto encontrado.</Text>
-              ) : (
-                <View style={styles.productGrid}>
-                  {filteredProducts.map((item) => (
-                    <TouchableOpacity key={item.id} style={styles.productCard}>
-                      <Image source={{ uri: item.imageUrl }} style={styles.image} />
-                      <Text style={styles.productName}>{item.nome}</Text>
-                      <Text style={styles.productDesc}>{item.descricao}</Text>
-                      <Text style={styles.price}>R$ {item.preco.toFixed(2)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+              <Text style={styles.sectionTitle}>🔥 Top do Momento</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              >
+                {topDoMomento.map((item) => (
+                  <CardItem
+                    key={item.id}
+                    title={item.nome}
+                    description={item.descricao}
+                    price={Number(item.preco)}
+                    imageUrl={item.imageUrl}
+                    discount={item.desconto || 0}
+                    rating={item.rating || 0}
+                    onPress={() =>
+                      navigation.navigate("ProductDetail", { produto: item })
+                    }
+                    onAdd={() => console.log(`Adicionado: ${item.nome}`)}
+                    style={styles.horizontalCard}
+                  />
+                ))}
+              </ScrollView>
             </>
           )}
 
-          {/* Mais pesquisados / Top do momento */}
-          {!query && !selectedCategory && (
+          {/* 📈 Mais Pesquisados */}
+          {maisPesquisados.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>Mais pesquisados</Text>
-              <View style={styles.productGrid}>
+              <Text style={styles.sectionTitle}>📈 Mais Pesquisados</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              >
                 {maisPesquisados.map((item) => (
-                  <TouchableOpacity key={item.id} style={styles.productCard}>
-                    <Image source={{ uri: item.imageUrl }} style={styles.image} />
-                    <Text style={styles.productName}>{item.nome}</Text>
-                    <Text style={styles.productDesc}>{item.descricao}</Text>
-                    <Text style={styles.price}>R$ {item.preco.toFixed(2)}</Text>
-                  </TouchableOpacity>
+                  <CardItem
+                    key={item.id}
+                    title={item.nome}
+                    description={item.descricao}
+                    price={Number(item.preco)}
+                    imageUrl={item.imageUrl}
+                    discount={item.desconto || 0}
+                    rating={item.rating || 0}
+                    onPress={() =>
+                      navigation.navigate("ProductDetail", { produto: item })
+                    }
+                    onAdd={() => console.log(`Adicionado: ${item.nome}`)}
+                    style={styles.horizontalCard}
+                  />
                 ))}
-              </View>
-
-              <Text style={styles.sectionTitle}>Top do momento</Text>
-              <View style={styles.productGrid}>
-                {topDoMomento.map((item) => (
-                  <TouchableOpacity key={item.id} style={styles.productCard}>
-                    <Image source={{ uri: item.imageUrl }} style={styles.image} />
-                    <Text style={styles.productName}>{item.nome}</Text>
-                    <Text style={styles.productDesc}>{item.descricao}</Text>
-                    <Text style={styles.price}>R$ {item.preco.toFixed(2)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              </ScrollView>
             </>
           )}
         </ScrollView>
       </View>
 
+      {/* ⚙️ BottomBar */}
       <GlobalBottomBar currentRouteName="Search" navigate={navigation.navigate} />
     </View>
   );
-
 };
 
 export default SearchScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f2f2f2" },
-  content: { flex: 1, marginBottom: Platform.OS === "ios" ? 150 : 120 },
+  content: { flex: 1, marginBottom: Platform.OS === "ios" ? 150 : 140 },
   header: {
     height: "19%",
     flexDirection: "row",
@@ -153,7 +249,6 @@ const styles = StyleSheet.create({
     borderBottomEndRadius: 20,
     borderBottomStartRadius: 20,
   },
-  
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -164,13 +259,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
   },
-  input: { 
-    flex: 1, 
-    fontSize: 16, 
-    color: "#111", 
-    marginLeft: 8,
-  },
-  
+  input: { flex: 1, fontSize: 16, color: "#111", marginLeft: 8 },
   scrollContent: { flex: 1 },
   sectionTitle: {
     fontSize: 16,
@@ -196,33 +285,16 @@ const styles = StyleSheet.create({
   },
   categoryActive: { backgroundColor: "#c8e6c9" },
   categoryText: { marginLeft: 6, fontSize: 14, color: "#111" },
-  productGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
+  horizontalList: { paddingHorizontal: 12 },
+  horizontalCard: {
+    width: 180,
+    marginRight: 12,
   },
-  productCard: {
-    width: "48%",
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    marginBottom: 10,
-    padding: 8,
-    elevation: 2,
-  },
-  image: {
-    width: "100%",
-    height: 100,
-    borderRadius: 8,
-    resizeMode: "contain",
-  },
-  productName: {
+  noResults: {
+    textAlign: "center",
     fontSize: 14,
-    fontWeight: "600",
-    marginTop: 6,
-    color: "#111",
+    color: "#777",
+    marginVertical: 20,
   },
-  productDesc: { fontSize: 12, color: "#555" },
-  price: { fontSize: 14, fontWeight: "700", color: "#2e7d32", marginTop: 4 },
-  noResults: { textAlign: "center", fontSize: 14, color: "#777", marginVertical: 20 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
 });

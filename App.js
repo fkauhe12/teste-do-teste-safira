@@ -8,11 +8,6 @@ import { Platform } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 
 export default function App() {
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      NavigationBar.setVisibilityAsync('hidden');
-    }
-  }, []);
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />

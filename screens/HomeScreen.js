@@ -9,48 +9,51 @@ import {
   Platform,
   StatusBar,
   Animated,
-  Alert,
   Dimensions,
   ImageBackground,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets, SafeAreaProvider } from "react-native-safe-area-context";
 import CardItem from "../components/CardItem";
 import GlobalBottomBar from "../components/GlobalBottomBar";
-import { produtos } from "../data/produtos";
 import { anuncios } from "../data/anuncios";
-// import { mockUser } from "../data/mockData"; // removido
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "../services/firebase";
+import { firestoreDb, auth, db } from "../services/firebase";
+import { collection, getDocs } from "firebase/firestore";
 import { ref, get } from "firebase/database";
 
 const { width } = Dimensions.get("window");
 
-const getLogoSource = () => {
+//
+// ----------- funções de nome seguras -----------
+//
+const CONNECTORS = new Set(["da","de","do","das","dos","e","di","du","del","della","van","von"]);
+
+const stripAccents = (s) => {
+  if (typeof s !== "string") return "";
   try {
-    const img = require("../assets/images/Logo_safira.png");
-    if (Platform.OS === "web") {
-      return { uri: img?.default ?? "../assets/images/Logo_safira.png" };
-    }
-    return img;
+    return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   } catch {
-    return { uri: "../assets/images/Logo_safira.png" };
+    return "";
   }
 };
 
-// conectores comuns em nomes PT-BR que não contam como sobrenome
-const CONNECTORS = new Set(["da", "de", "do", "das", "dos", "e", "di", "du", "del", "della", "van", "von"]);
-const stripAccents = (s = "") => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-const capitalize = (s = "") => {
-  const clean = stripAccents(s.toLowerCase());
-  return clean.charAt(0).toUpperCase() + clean.slice(1);
+const capitalize = (s) => {
+  if (typeof s !== "string" || !s.trim()) return "";
+  const clean = stripAccents(s);
+  if (!clean) return "";
+  return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
 };
-const getShortName = (fullName = "") => {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+
+const getShortName = (fullName) => {
+  if (typeof fullName !== "string") return "";
+  const trimmed = fullName.trim();
+  if (!trimmed) return "";
+  const parts = trimmed.split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "";
   if (parts.length === 1) return capitalize(parts[0]);
-
   const first = parts[0];
   let last = parts[parts.length - 1];
 
@@ -61,65 +64,80 @@ const getShortName = (fullName = "") => {
       break;
     }
   }
+
   return `${capitalize(first)} ${capitalize(last)}`;
 };
 
+//
+// ----------- componente de paginação -----------
+//
 const PaginationDots = ({ total, activeIndex, onDotPress }) => (
   <View style={styles.dotContainer}>
-    {Array.from({ length: total }).map((_, index) => (
+    {Array.from({ length: total }).map((_, i) => (
       <TouchableOpacity
-        key={index}
-        onPress={() => onDotPress(index)}
-        style={[
-          styles.dot,
-          activeIndex === index ? styles.dotActive : styles.dotInactive,
-        ]}
+        key={i}
+        onPress={() => onDotPress(i)}
+        style={[styles.dot, activeIndex === i ? styles.dotActive : styles.dotInactive]}
       />
     ))}
   </View>
 );
 
+//
+// ----------- componente principal -----------
+//
 export default function HomeScreen({ navigation }) {
-  const logoSource = getLogoSource();
   const insets = useSafeAreaInsets();
+  const logo = require("../assets/images/Logo_safira.png");
   const numAnuncios = anuncios.length;
-  const AUTO_SCROLL_INTERVAL = 4000;
   const loopItemWidth = width * 0.9 + 20;
+  const scrollViewRef = useRef(null);
 
   const [activeIndex, setActiveIndex] = useState(1);
   const [greetingName, setGreetingName] = useState("");
-  const scrollViewRef = useRef(null);
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [produtos, setProdutos] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const loopedAnuncios =
-    numAnuncios > 0
-      ? [anuncios[numAnuncios - 1], ...anuncios, anuncios[0]]
-      : [];
+  //
+  // 🔥 Carrega produtos do Firestore
+  //
+  useEffect(() => {
+    const fetchProdutos = async () => {
+      try {
+        const snap = await getDocs(collection(firestoreDb, "produtos"));
+        const dados = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setProdutos(dados);
+      } catch (e) {
+        console.error("Erro ao carregar produtos:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProdutos();
+  }, []);
 
-  // Busca nome do usuário logado
+  //
+  // 🔥 Agrupamentos
+  //
+  const topDoMomento = produtos.filter((p) => p.topDoMomento);
+  const maisPesquisados = produtos.filter((p) => p.maisPesquisado);
+  const maisVendidos = produtos.filter((p) => p.maisVendido);
+
+  //
+  // 🔐 Saudação com nome + sobrenome
+  //
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setGreetingName("");
-        return;
-      }
+      if (!user) return setGreetingName("");
       try {
         const snap = await get(ref(db, `users/${user.uid}`));
         const fullName =
-          (snap.exists() && snap.val().fullName) ||
-          user.displayName ||
-          "";
+          (snap.exists() && snap.val().fullName) || user.displayName || "";
         const short = getShortName(fullName);
-
-        if (short) {
-          setGreetingName(short); // Ex.: "Felipe Modena"
-        } else if (user.email) {
-          setGreetingName(user.email.split("@")[0]);
-        } else {
-          setGreetingName("");
-        }
-      } catch (e) {
+        if (short) setGreetingName(short);
+        else if (user.email) setGreetingName(user.email.split("@")[0]);
+        else setGreetingName("");
+      } catch {
         const fallback = user.displayName || user.email?.split("@")[0] || "";
         setGreetingName(fallback);
       }
@@ -127,41 +145,28 @@ export default function HomeScreen({ navigation }) {
     return () => unsub();
   }, []);
 
-  // Auto-scroll fixado
+  //
+  // 🔁 Auto‑scroll do carrossel
+  //
   useEffect(() => {
     if (numAnuncios === 0) return;
-
-    let intervalId;
-    const startAutoScroll = () => {
-      intervalId = setInterval(() => {
-        setActiveIndex((prevIndex) => {
-          let nextIndex = prevIndex + 1;
-          scrollViewRef.current?.scrollTo({
-            x: nextIndex * loopItemWidth,
-            animated: true,
-          });
-          return nextIndex;
-        });
-      }, AUTO_SCROLL_INTERVAL);
-    };
-
-    startAutoScroll();
-    return () => clearInterval(intervalId);
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => {
+        const next = prev + 1;
+        scrollViewRef.current?.scrollTo({ x: next * loopItemWidth, animated: true });
+        return next;
+      });
+    }, 4000);
+    return () => clearInterval(interval);
   }, [numAnuncios, loopItemWidth]);
 
-  // Corrige o loop ao chegar no fim/início
-  const handleMomentumScrollEnd = (event) => {
-    const offset = event.nativeEvent.contentOffset.x;
+  const handleMomentumScrollEnd = (e) => {
+    const offset = e.nativeEvent.contentOffset.x;
     const newIndex = Math.round(offset / loopItemWidth);
-
     if (newIndex !== activeIndex) setActiveIndex(newIndex);
-
     if (newIndex === numAnuncios + 1) {
       setTimeout(() => {
-        scrollViewRef.current?.scrollTo({
-          x: loopItemWidth,
-          animated: false,
-        });
+        scrollViewRef.current?.scrollTo({ x: loopItemWidth, animated: false });
         setActiveIndex(1);
       }, 100);
     } else if (newIndex === 0) {
@@ -175,46 +180,39 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
-  const handleDotPress = (index) => {
-    const targetIndexInLoop = index + 1;
-    const xOffset = targetIndexInLoop * loopItemWidth;
-    scrollViewRef.current?.scrollTo({
-      x: xOffset,
-      animated: true,
-    });
-    setActiveIndex(targetIndexInLoop);
+  const handleDotPress = (i) => {
+    const target = i + 1;
+    scrollViewRef.current?.scrollTo({ x: target * loopItemWidth, animated: true });
+    setActiveIndex(target);
   };
 
-  const handleZoomIn = () => {};
+  const greetingText = `Olá, ${greetingName || "Visitante"}!`;
 
-  const greetingText = `Olá, ${greetingName || "Visitantes"}!`;
+  //
+  // ---------------- Renderização ----------------
+  //
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color="#0E2E98" size="large" />
+        <Text>Carregando produtos...</Text>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaProvider style={styles.container} edges={["top", "left", "right"]}>
       <GlobalBottomBar currentRouteName="Home" navigate={navigation.navigate} />
 
-      <Animated.View
-        style={{
-          flex: 1,
-          opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }],
-          marginBottom:
-            Platform.OS === "web" ? 70 : Platform.OS === "ios" ? 60 : 60,
-        }}
-      >
+      <Animated.View style={{ flex: 1, marginBottom: 60 }}>
+        {/* 🔵 Cabeçalho */}
         <LinearGradient
           colors={["#0E2E98", "#3E57AC", "#4873FF"]}
           start={{ x: 0, y: 1 }}
           end={{ x: 1, y: 1 }}
           style={styles.header}
         >
-          {logoSource ? (
-            <Image source={logoSource} style={styles.logo} />
-          ) : (
-            <View style={styles.logoFallback}>
-              <Text style={{ color: "#fff", fontWeight: "bold" }}>Logo</Text>
-            </View>
-          )}
+          <Image source={logo} style={styles.logo} />
           <Text style={styles.greeting}>{greetingText}</Text>
           <TouchableOpacity style={styles.notification}>
             <Ionicons name="notifications-outline" size={24} color="#000" />
@@ -225,27 +223,26 @@ export default function HomeScreen({ navigation }) {
         </LinearGradient>
 
         <ScrollView
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={[
-            styles.containerConteudo,
+            styles.content,
             { paddingBottom: insets.bottom + 100 },
           ]}
-          showsVerticalScrollIndicator={false}
         >
-          <View style={{ marginTop: 10 }}>
-            <Text style={styles.carouselTitle}>Anúncios de Recomendação</Text>
-
-            <ScrollView
-              ref={scrollViewRef}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.carousel}
-              pagingEnabled
-              onMomentumScrollEnd={handleMomentumScrollEnd}
-              scrollEventThrottle={16}
-            >
-              {loopedAnuncios.map((anuncio, index) => (
+          {/* 🔆 Carrossel de anúncios */}
+          <Text style={styles.carouselTitle}>Anúncios de Recomendação</Text>
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            pagingEnabled
+            onMomentumScrollEnd={handleMomentumScrollEnd}
+            showsHorizontalScrollIndicator={false}
+            style={styles.carousel}
+          >
+            {[anuncios[numAnuncios - 1], ...anuncios, anuncios[0]].map(
+              (anuncio, i) => (
                 <ImageBackground
-                  key={index}
+                  key={i}
                   source={anuncio.URLImagem}
                   style={[styles.anuncioCard, { width: width * 0.9 }]}
                   imageStyle={{ borderRadius: 15 }}
@@ -260,65 +257,128 @@ export default function HomeScreen({ navigation }) {
                     </Text>
                   </LinearGradient>
                 </ImageBackground>
-              ))}
-            </ScrollView>
-
-            {numAnuncios > 1 && (
-              <PaginationDots
-                total={numAnuncios}
-                activeIndex={activeIndex - 1}
-                onDotPress={handleDotPress}
-              />
+              )
             )}
-          </View>
+          </ScrollView>
+          {numAnuncios > 1 && (
+            <PaginationDots
+              total={numAnuncios}
+              activeIndex={activeIndex - 1}
+              onDotPress={handleDotPress}
+            />
+          )}
 
-          <TouchableOpacity onPress={handleZoomIn} activeOpacity={0.8}>
-            <Text style={styles.sectionTitle}>Mais Vendidos!</Text>
-          </TouchableOpacity>
+          {/* 🔝 Top do Momento */}
+          {topDoMomento.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>🔥 Top do Momento</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              >
+                {topDoMomento.map((p) => (
+                  <CardItem
+                    key={p.id}
+                    title={p.nome}
+                    description={p.descricao}
+                    price={p.preco}
+                    imageUrl={p.imageUrl}
+                    style={styles.horizontalCard}
+                    onPress={() =>
+                      navigation.navigate("ProductDetail", { produto: p })
+                    }
+                  />
+                ))}
+              </ScrollView>
+            </>
+          )}
 
-          <View style={styles.productsGrid}>
-            {produtos.map((produto) => (
+          {/* 💎 Mais Vendidos */}
+          {maisVendidos.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>💎 Mais Vendidos</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              >
+                {maisVendidos.map((p) => (
+                  <CardItem
+                    key={p.id}
+                    title={p.nome}
+                    description={p.descricao}
+                    price={p.preco}
+                    imageUrl={p.imageUrl}
+                    style={styles.horizontalCard}
+                    onPress={() =>
+                      navigation.navigate("ProductDetail", { produto: p })
+                    }
+                  />
+                ))}
+              </ScrollView>
+            </>
+          )}
+
+          {/* 📈 Mais Pesquisados */}
+          {maisPesquisados.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>📈 Mais Pesquisados</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              >
+                {maisPesquisados.map((p) => (
+                  <CardItem
+                    key={p.id}
+                    title={p.nome}
+                    description={p.descricao}
+                    price={p.preco}
+                    imageUrl={p.imageUrl}
+                    style={styles.horizontalCard}
+                    onPress={() =>
+                      navigation.navigate("ProductDetail", { produto: p })
+                    }
+                  />
+                ))}
+              </ScrollView>
+            </>
+          )}
+
+          {/* 🛒 Todos os Produtos */}
+          <Text style={styles.sectionTitle}>🛒 Produtos</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+          >
+            {produtos.map((p) => (
               <CardItem
-                key={produto.id}
-                title={produto.nome}
-                description={`${produto.descricao} - ${produto.dosagem}`}
-                imageUrl={produto.imageUrl}
-                price={
-                  typeof produto.preco === "number" ? produto.preco : undefined
+                key={p.id}
+                title={p.nome}
+                description={p.descricao}
+                price={p.preco}
+                imageUrl={p.imageUrl}
+                style={styles.horizontalCard}
+                onPress={() =>
+                  navigation.navigate("ProductDetail", { produto: p })
                 }
-                discount={produto.discount ?? 0}
-                rating={produto.rating ?? 0}
-                style={styles.productCard}
-                additionalInfo={`Forma: ${produto.forma}`}
-                onPress={() => {
-                  Alert.alert(
-                    "Adicionar à saloca?",
-                    `Deseja adicionar ${produto.nome} ${produto.dosagem} à sua saloca?`,
-                    [
-                      { text: "Cancelar", style: "cancel" },
-                      {
-                        text: "Sim, adicionar",
-                        onPress: () => {
-                          Alert.alert("Sucesso", "Produto adicionado à saloca!");
-                          navigation.navigate("CartScreen", {
-                            product: produto,
-                          });
-                        },
-                      },
-                    ]
-                  );
-                }}
               />
             ))}
-          </View>
+          </ScrollView>
         </ScrollView>
       </Animated.View>
     </SafeAreaProvider>
   );
 }
 
+//
+// ----------- estilos -----------
+//
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#d9d9d9" },
+  loading: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     height: "20%",
     flexDirection: "row",
@@ -330,15 +390,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
-  logo: { width: 60, height: 60, resizeMode: "contain", borderRadius: 1000 },
-  logoFallback: {
-    width: 60,
-    height: 60,
-    borderRadius: 1000,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  logo: { width: 60, height: 60, resizeMode: "contain", borderRadius: 100 },
   greeting: {
     flex: 1,
     color: "#fff",
@@ -361,15 +413,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   badgeText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
-  containerConteudo: { paddingHorizontal: 10 },
-  carousel: { marginTop: 10 },
+  content: { paddingHorizontal: 10 },
+
   carouselTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
     marginBottom: 10,
     marginLeft: 10,
+    marginTop: 15,
   },
+
   anuncioCard: {
     borderRadius: 15,
     height: 150,
@@ -381,12 +435,12 @@ const styles = StyleSheet.create({
   anuncioTitulo: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#000000ff",
+    color: "#000",
     marginBottom: 5,
   },
   anuncioDescricao: {
     fontSize: 14,
-    color: "#000002ff",
+    color: "#000",
     textAlign: "center",
     fontWeight: "bold",
     paddingHorizontal: 20,
@@ -405,19 +459,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 5,
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginHorizontal: 5,
-  },
+  dot: { width: 10, height: 10, borderRadius: 5, marginHorizontal: 5 },
   dotInactive: { backgroundColor: "#ccc" },
-  dotActive: {
-    backgroundColor: "#0E2E98",
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
+  dotActive: { backgroundColor: "#0E2E98", width: 12, height: 12, borderRadius: 6 },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
@@ -425,14 +469,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginLeft: 10,
   },
-  productsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: 5,
-  },
-  productCard: {
-    width: "48%",
-    marginBottom: 15,
-  },
+  horizontalList: { paddingHorizontal: 12 },
+  horizontalCard: { width: 180, marginRight: 12 },
 });

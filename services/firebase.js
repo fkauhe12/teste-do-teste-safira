@@ -1,5 +1,4 @@
-// firebase.js
-import { initializeApp } from "firebase/app";
+import { getApps, getApp, initializeApp } from "firebase/app";
 import {
   getDatabase,
   ref,
@@ -12,16 +11,18 @@ import {
   equalTo,
 } from "firebase/database";
 import {
-  getAuth,
   initializeAuth,
+  getAuth,
   getReactNativePersistence,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
 } from "firebase/auth";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getFirestore } from "firebase/firestore";
+import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
+/** 🔧 Configuração (.env) */
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_apiKey,
   authDomain: process.env.EXPO_PUBLIC_authDomain,
@@ -32,23 +33,39 @@ const firebaseConfig = {
   databaseURL: process.env.EXPO_PUBLIC_databaseURL,
 };
 
-const app = initializeApp(firebaseConfig);
+/** 🚀 Inicializa o app (só uma vez) */
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
+/** 💾 Realtime Database */
 const db = getDatabase(app);
 
+/** 🔥 Firestore */
+const firestoreDb = getFirestore(app);
+
+/** 🔐 Auth com persistência garantida */
 let auth;
 if (Platform.OS === "web") {
   auth = getAuth(app);
 } else {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
+  // ⚠️ Nunca chame getAuth antes! InitializeAuth precisa vir primeiro.
+  const existingApps = getApps();
+  // Se não houver Auth criado ainda, inicializa corretamente
+  try {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+    });
+  } catch {
+    // Se já estava inicializado por algum outro módulo, pega a instância
+    auth = getAuth(app);
+  }
 }
 
+/** ✅ Exportações */
 export {
   app,
   db,
+  firestoreDb,
   auth,
-  // RTDB
   ref,
   set,
   get,
@@ -57,7 +74,6 @@ export {
   query,
   orderByChild,
   equalTo,
-  // Auth
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
