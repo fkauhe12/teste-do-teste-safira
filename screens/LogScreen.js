@@ -16,9 +16,18 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import axios from "axios";
 import StepIndicator from "../components/StepIndicator";
-import { register as registerUser, login as loginUser, mapAuthError } from "../services/auth";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "../services/firebase";
+import {
+  register as registerUser,
+  login as loginUser,
+  mapAuthError,
+  resendVerificationEmail,
+} from "../services/auth";
+import {
+  onAuthStateChanged,
+  signOut,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+import { auth, db, ref, get } from "../services/firebase";
 
 export default function LogScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -121,9 +130,63 @@ export default function LogScreen({ navigation }) {
     try {
       setLoading(true);
       await loginUser(identifier, password);
-      navigation.replace("Home"); // vai direto pra Home ao logar
+      navigation.replace("Home");
     } catch (e) {
-      Alert.alert("Erro ao entrar", mapAuthError(e));
+      if (e?.code === "auth/email-not-verified") {
+        if (!isFlipped) setIsFlipped(true);
+        setStep(4);
+        const u = auth.currentUser;
+        if (u?.email) setEmail(u.email);
+        Alert.alert(
+          "Verifique seu e-mail",
+          "Enviamos um link de verificação. Toque em 'Já verifiquei' após confirmar o e-mail."
+        );
+      } else {
+        Alert.alert("Erro ao entrar", mapAuthError(e));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const id = (identifier || "").trim();
+    if (!id) {
+      Alert.alert("Recuperar Senha", "Digite seu e-mail ou telefone para enviarmos o link.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      let emailToUse = id;
+      const digits = id.replace(/\D/g, "");
+      const looksLikePhone = digits.length >= 8 && !id.includes("@");
+
+      // Se for telefone, mapeia para e-mail pelo RTDB
+      if (looksLikePhone) {
+        const snap = await get(ref(db, `lookups/phones/${digits}`));
+        if (!snap.exists()) {
+          Alert.alert("Recuperar Senha", "Telefone não cadastrado.");
+          return;
+        }
+        emailToUse = snap.val().email || "";
+      }
+
+      const emailNormalized = emailToUse.trim().toLowerCase();
+      const validEmail = /\S+@\S+\.\S+/.test(emailNormalized);
+      if (!validEmail) {
+        Alert.alert("Recuperar Senha", "Digite um e-mail válido.");
+        return;
+      }
+
+      await sendPasswordResetEmail(auth, emailNormalized);
+      Alert.alert(
+        "Verifique seu e-mail",
+        "Enviamos um link para redefinir sua senha. Veja também a caixa de spam."
+      );
+    } catch (e) {
+      Alert.alert("Erro", mapAuthError(e));
     } finally {
       setLoading(false);
     }
@@ -133,14 +196,14 @@ export default function LogScreen({ navigation }) {
     try {
       setLoading(true);
       await signOut(auth);
-      setIdentifier("");
-      setPassword("");
-      if (isFlipped) setIsFlipped(false);
-      Alert.alert("Desconectado", "Você saiu da sua conta.");
     } catch (e) {
       Alert.alert("Erro ao sair", e?.message || "Tente novamente.");
     } finally {
+      setIdentifier("");
+      setPassword("");
+      if (isFlipped) setIsFlipped(false);
       setLoading(false);
+      Alert.alert("Desconectado", "Você saiu da sua conta.");
     }
   };
 
@@ -150,6 +213,7 @@ export default function LogScreen({ navigation }) {
   const [step, setStep] = useState(1);
   const [fullName, setFullName] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [cpf, setCpf] = useState(""); // CPF opcional
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmSenha, setConfirmSenha] = useState("");
@@ -162,7 +226,6 @@ export default function LogScreen({ navigation }) {
   const [state, setState] = useState("");
   const [houseNumber, setHouseNumber] = useState("");
 
-  // Olho nas senhas (cadastro)
   const [showSenha, setShowSenha] = useState(false);
   const [showConfirmSenha, setShowConfirmSenha] = useState(false);
 
@@ -203,6 +266,47 @@ export default function LogScreen({ navigation }) {
     setStep(step + 1);
   };
 
+  // ===== Step 4: Verificação de e-mail =====
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handleResendVerification = async () => {
+    if (resendCooldown > 0) return;
+    try {
+      setVerifyLoading(true);
+      await resendVerificationEmail();
+      setResendCooldown(60);
+      Alert.alert("E-mail enviado", "Verifique sua caixa de entrada e spam.");
+    } catch (e) {
+      Alert.alert("Erro", mapAuthError(e));
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const handleCheckVerified = async () => {
+    try {
+      setVerifyLoading(true);
+      await auth.currentUser?.reload();
+      if (auth.currentUser?.emailVerified) {
+        Alert.alert("Tudo certo!", "E-mail verificado com sucesso.");
+        navigation.replace("Home");
+      } else {
+        Alert.alert("Ainda não confirmado", "Toque em 'Reenviar e-mail' ou tente novamente em alguns segundos.");
+      }
+    } catch (e) {
+      Alert.alert("Erro", e?.message || "Não foi possível verificar agora.");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
   const finish = async () => {
     const phoneDigits = telefone.replace(/\D/g, "");
     if (!fullName.trim() || !emailValid || phoneDigits.length < 8 || !passwordValid || !passwordsMatch) {
@@ -215,6 +319,7 @@ export default function LogScreen({ navigation }) {
       await registerUser({
         fullName,
         telefone,
+        cpf,
         email,
         senha,
         address,
@@ -223,7 +328,12 @@ export default function LogScreen({ navigation }) {
         houseNumber,
         zip,
       });
-      navigation.replace("Home");
+      setStep(4);
+      if (!isFlipped) setIsFlipped(true);
+      Alert.alert(
+        "Verificação enviada",
+        "Enviamos um e-mail de verificação. Toque em 'Já verifiquei' após confirmar seu e-mail."
+      );
     } catch (e) {
       Alert.alert("Erro no cadastro", mapAuthError(e));
     } finally {
@@ -337,7 +447,7 @@ export default function LogScreen({ navigation }) {
 
               <TouchableOpacity
                 style={styles.linkButton}
-                onPress={() => Alert.alert("Recuperar Senha", "Em desenvolvimento.")}
+                onPress={handleForgotPassword}
                 disabled={isAnimating || loading}
               >
                 <Text style={styles.linkText}>Esqueceu sua senha?</Text>
@@ -385,7 +495,7 @@ export default function LogScreen({ navigation }) {
           )}
         </Animated.View>
 
-        {/* ======== BACK: CADASTRO ======== */}
+        {/* ======== BACK: CADASTRO + VERIFICAÇÃO ======== */}
         <Animated.View
           style={[
             styles.card,
@@ -401,15 +511,15 @@ export default function LogScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.backButtonInside}
-            onPress={flipCard}
-            disabled={isAnimating || loading}
+            onPress={step === 4 ? handleSignOut : flipCard}
+            disabled={isAnimating || loading || verifyLoading}
           >
             <Ionicons name="arrow-back" size={24} color="#fff" />
-            <Text style={styles.backText}>Voltar</Text>
+            <Text style={styles.backText}>{step === 4 ? "Sair" : "Voltar"}</Text>
           </TouchableOpacity>
 
-          <StepIndicator steps={3} currentStep={step - 1} style={{ marginBottom: 15 }} />
-          <Text style={styles.stepText}>Passo {step} de 3</Text>
+          <StepIndicator steps={4} currentStep={step - 1} style={{ marginBottom: 15 }} />
+          <Text style={styles.stepText}>Passo {step} de 4</Text>
 
           {step === 1 && (
             <>
@@ -428,6 +538,16 @@ export default function LogScreen({ navigation }) {
                 value={telefone}
                 onChangeText={(t) => setTelefone(t.replace(/\D/g, "").slice(0, 15))}
                 keyboardType="phone-pad"
+                placeholderTextColor="#888"
+                editable={!isAnimating && !loading}
+              />
+              {/* CPF (opcional) */}
+              <TextInput
+                style={styles.input}
+                placeholder="CPF (opcional)"
+                value={cpf}
+                onChangeText={(t) => setCpf(t.replace(/\D/g, "").slice(0, 11))}
+                keyboardType="numeric"
                 placeholderTextColor="#888"
                 editable={!isAnimating && !loading}
               />
@@ -558,38 +678,93 @@ export default function LogScreen({ navigation }) {
             </>
           )}
 
-          <View style={styles.buttons}>
-            {step > 1 && (
+          {step === 4 && (
+            <>
+              <Text style={styles.title}>Verifique seu e-mail</Text>
+              <Text style={{ color: "#ccc", textAlign: "center", marginBottom: 12 }}>
+                Enviamos um link de confirmação para:
+              </Text>
+              <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700", marginBottom: 18 }}>
+                {auth.currentUser?.email || email}
+              </Text>
+
+              <Text style={{ color: "#ccc", textAlign: "center", marginBottom: 16 }}>
+                Abra o e-mail e clique no link. Depois, toque em "Já verifiquei" abaixo.
+              </Text>
+
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  style={[styles.button, { flex: 1, backgroundColor: "#666" }]}
+                  onPress={handleResendVerification}
+                  disabled={verifyLoading || resendCooldown > 0}
+                >
+                  {verifyLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>
+                      {resendCooldown > 0 ? `Reenviar (${resendCooldown}s)` : "Reenviar e-mail"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.button, { flex: 1 }]}
+                  onPress={handleCheckVerified}
+                  disabled={verifyLoading}
+                >
+                  {verifyLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>Já verifiquei</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
-                style={[styles.button, styles.backButton]}
-                onPress={() => setStep(step - 1)}
-                disabled={isAnimating || loading}
+                style={styles.linkButton}
+                onPress={handleSignOut}
+                disabled={verifyLoading}
               >
-                <Text style={styles.backButtonText}>Voltar</Text>
+                <Text style={styles.linkText}>Trocar e-mail / Sair</Text>
               </TouchableOpacity>
-            )}
-            {step < 3 ? (
-              <TouchableOpacity
-                style={styles.button}
-                onPress={nextStep}
-                disabled={isAnimating || loading}
-              >
-                <Text style={styles.buttonText}>Próximo</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.button}
-                onPress={finish}
-                disabled={isAnimating || loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Finalizar</Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
+            </>
+          )}
+
+          {/* Botões padrão para steps 1..3 */}
+          {step <= 3 && (
+            <View style={styles.buttons}>
+              {step > 1 && (
+                <TouchableOpacity
+                  style={[styles.button, styles.backButton]}
+                  onPress={() => setStep(step - 1)}
+                  disabled={isAnimating || loading}
+                >
+                  <Text style={styles.backButtonText}>Voltar</Text>
+                </TouchableOpacity>
+              )}
+              {step < 3 ? (
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={nextStep}
+                  disabled={isAnimating || loading}
+                >
+                  <Text style={styles.buttonText}>Próximo</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={finish}
+                  disabled={isAnimating || loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>Finalizar</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </Animated.View>
       </View>
     </Wrapper>
@@ -648,7 +823,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#333",
     borderRadius: 10,
-    paddingHorizontal: 12,
   },
   eyeButton: { position: "absolute", right: 12, padding: 8 },
   primaryButton: {
@@ -671,7 +845,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
-  backButton: { backgroundColor: "#666" },
+  backButton: { backgroundColor: "#ffffffff" },
   backButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
   errorText: { color: "#e63946", fontSize: 13, textAlign: "center", marginBottom: 8 },
   connectedBox: {

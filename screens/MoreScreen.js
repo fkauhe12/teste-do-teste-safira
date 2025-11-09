@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import GlobalBottomBar from '../components/GlobalBottomBar';
+import GlobalBottomBar from "../components/GlobalBottomBar";
 
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../services/firebase";
@@ -31,8 +31,22 @@ const getLogoSource = () => {
 };
 
 // conectores comuns em nomes PT-BR que não contam como sobrenome
-const CONNECTORS = new Set(["da", "de", "do", "das", "dos", "e", "di", "du", "del", "della", "van", "von"]);
-const stripAccents = (s = "") => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const CONNECTORS = new Set([
+  "da",
+  "de",
+  "do",
+  "das",
+  "dos",
+  "e",
+  "di",
+  "du",
+  "del",
+  "della",
+  "van",
+  "von",
+]);
+const stripAccents = (s = "") =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const capitalize = (s = "") => {
   const clean = stripAccents(s.toLowerCase());
   return clean.charAt(0).toUpperCase() + clean.slice(1);
@@ -59,26 +73,29 @@ const MoreScreen = ({ navigation }) => {
   const logoSource = getLogoSource();
   const [greetingName, setGreetingName] = useState("");
 
-  // Busca nome do usuário logado
+  // Busca nome do usuário logado (displayName instantâneo + atualiza com DB)
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setGreetingName("");
         return;
       }
+
+      // 1) coloca algo imediato (displayName ou email)
+      const immediate =
+        getShortName(user.displayName || "") ||
+        (user.email ? user.email.split("@")[0] : "");
+      setGreetingName(immediate);
+
+      // 2) tenta atualizar com o fullName do Realtime Database
       try {
         const snap = await get(ref(db, `users/${user.uid}`));
         const fullName =
-          (snap.exists() && snap.val().fullName) ||
-          user.displayName ||
-          "";
+          (snap.exists() && (snap.val()?.fullName || "").trim()) || "";
         const short = getShortName(fullName);
         if (short) setGreetingName(short);
-        else if (user.email) setGreetingName(user.email.split("@")[0]);
-        else setGreetingName("");
-      } catch (e) {
-        const fallback = user.displayName || user.email?.split("@")[0] || "";
-        setGreetingName(fallback);
+      } catch {
+        // mantém o immediate se falhar
       }
     });
     return () => unsub();
@@ -139,9 +156,19 @@ const MoreScreen = ({ navigation }) => {
               <Ionicons name="pricetag-outline" size={20} color="#000" />
               <Text style={styles.infoText}>Cupons</Text>
             </TouchableOpacity>
+
+            {/* Novo: Alterar dados */}
+            <TouchableOpacity
+              style={styles.infoItem}
+              onPress={() => navigation.navigate("EditProfile")}
+            >
+              <Ionicons name="create-outline" size={20} color="#000" />
+              <Text style={styles.infoText}>Alterar dados</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </View>
+
       <GlobalBottomBar currentRouteName="More" navigate={navigation.navigate} />
     </View>
   );
@@ -152,11 +179,11 @@ export default MoreScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#d9d9d9"
+    backgroundColor: "#d9d9d9",
   },
   content: {
     flex: 1,
-    marginBottom: Platform.OS === "web" ? 70 : Platform.OS === "ios" ? 60 : 60
+    marginBottom: Platform.OS === "web" ? 70 : Platform.OS === "ios" ? 60 : 60,
   },
   header: {
     height: "18%",
@@ -167,13 +194,13 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 30,
     minHeight: 90,
     borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20
+    borderBottomRightRadius: 20,
   },
-  logo: { 
-    width: 60, 
-    height: 60, 
-    resizeMode: "contain", 
-    borderRadius: 1000 
+  logo: {
+    width: 60,
+    height: 60,
+    resizeMode: "contain",
+    borderRadius: 1000,
   },
   logoFallback: {
     width: 60,
@@ -181,20 +208,20 @@ const styles = StyleSheet.create({
     borderRadius: 1000,
     backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   greeting: {
     flex: 1,
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-    marginLeft: 10
+    marginLeft: 10,
   },
   notification: {
     position: "relative",
     backgroundColor: "#fff",
     borderRadius: 1000,
-    padding: 6
+    padding: 6,
   },
   badge: {
     position: "absolute",
@@ -202,38 +229,38 @@ const styles = StyleSheet.create({
     right: -5,
     backgroundColor: "red",
     borderRadius: 1000,
-    paddingHorizontal: 5
+    paddingHorizontal: 5,
   },
-  badgeText: { 
-    color: "#fff", 
-    fontSize: 12, 
-    fontWeight: "bold" 
+  badgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
   },
-  body: { 
-    flex: 1 
+  body: {
+    flex: 1,
   },
   loginButton: {
     paddingHorizontal: 20,
-    marginVertical: 20
+    marginVertical: 20,
   },
   loginGradient: {
     padding: 12,
     borderRadius: 8,
-    alignItems: "center"
+    alignItems: "center",
   },
   loginText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "bold"
+    fontWeight: "bold",
   },
   infoSection: {
     flex: 1,
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
   },
   infoTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    marginBottom: 15
+    marginBottom: 15,
   },
   infoItem: {
     flexDirection: "row",
@@ -241,10 +268,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     padding: 15,
     borderRadius: 8,
-    marginBottom: 10
+    marginBottom: 10,
   },
   infoText: {
     marginLeft: 10,
-    fontSize: 16
-  }
+    fontSize: 16,
+  },
 });

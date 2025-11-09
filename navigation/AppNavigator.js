@@ -12,11 +12,13 @@ import SadScreen from "../screens/SadScreen";
 import LogScreen from "../screens/LogScreen";
 import LoadingScreen from "../screens/LoadingScreen";
 import GlobalBottomBar from "../components/GlobalBottomBar";
+import EditProfileScreen from "../screens/EditProfileScreen";
+
 
 const Stack = createStackNavigator();
 
 // telas que não devem exibir a bottom bar
-const HIDDEN_BOTTOM_BAR = new Set(["Loading", "Log", "LogCadastro"]);
+const HIDDEN_BOTTOM_BAR = new Set(["Loading", "Log", "LogCadastro", "SAD", "Cart", "EditProfile"]);
 
 export default function AppNavigator() {
   const [isAppReady, setIsAppReady] = useState(false);
@@ -57,6 +59,8 @@ export default function AppNavigator() {
             options={{ presentation: "transparentModal" }}
           />
           <Stack.Screen name="More" component={MoreScreen} />
+          <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+
           <Stack.Screen
             name="SAD"
             component={SadScreen}

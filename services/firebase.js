@@ -1,3 +1,4 @@
+// services/firebase.js
 import { getApps, getApp, initializeApp } from "firebase/app";
 import {
   getDatabase,
@@ -19,10 +20,11 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-/** 🔧 Configuração (.env) */
+/** 🔧 Config (.env) */
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_apiKey,
   authDomain: process.env.EXPO_PUBLIC_authDomain,
@@ -33,29 +35,94 @@ const firebaseConfig = {
   databaseURL: process.env.EXPO_PUBLIC_databaseURL,
 };
 
-/** 🚀 Inicializa o app (só uma vez) */
+/** 🚀 Inicializa o app (uma vez) */
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-/** 💾 Realtime Database */
+/** 💾 RTDB / 🔥 Firestore */
 const db = getDatabase(app);
-
-/** 🔥 Firestore */
 const firestoreDb = getFirestore(app);
 
-/** 🔐 Auth com persistência garantida */
+/** 🔧 Sanitiza a chave para o SecureStore (aceita apenas [A-Za-z0-9._-]) */
+const sanitizeKey = (key) =>
+  String(key ?? "").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 512);
+
+/**
+ * 🔐 Adaptador híbrido:
+ * - Usa chave sanitizada no SecureStore.
+ * - Para migração, lê/remove do AsyncStorage usando a chave ORIGINAL.
+ * - Nunca rejeita Promises (evita warnings).
+ */
+const hybridSecureAdapter = {
+  getItem: async (key) => {
+    if (Platform.OS === "web") return null;
+    const sKey = sanitizeKey(key);
+
+    // 1) Tenta SecureStore (com chave sanitizada)
+    try {
+      const v = await SecureStore.getItemAsync(sKey);
+      if (v != null) return v;
+    } catch (e) {
+      if (__DEV__) console.warn("[AuthStorage] SecureStore.getItem error:", sKey, e);
+    }
+
+    // 2) Migração: tenta AsyncStorage (com chave original)
+    try {
+      const legacy = await AsyncStorage.getItem(key);
+      if (legacy != null) {
+        try {
+          await SecureStore.setItemAsync(sKey, legacy);
+          await AsyncStorage.removeItem(key);
+        } catch (migrateErr) {
+          if (__DEV__)
+            console.warn("[AuthStorage] migrate -> SecureStore.setItem error:", sKey, migrateErr);
+          // Mesmo se a cópia falhar, retornamos o valor legacy para não quebrar
+        }
+      }
+      return legacy;
+    } catch (e) {
+      if (__DEV__) console.warn("[AuthStorage] AsyncStorage.getItem error:", key, e);
+      return null;
+    }
+  },
+
+  setItem: async (key, value) => {
+    if (Platform.OS === "web") return;
+    const sKey = sanitizeKey(key);
+    try {
+      await SecureStore.setItemAsync(sKey, value);
+    } catch (e) {
+      if (__DEV__) console.warn("[AuthStorage] SecureStore.setItem error:", sKey, e);
+    }
+    // Limpa legado (chave original) sem quebrar
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch {}
+  },
+
+  removeItem: async (key) => {
+    if (Platform.OS === "web") return;
+    const sKey = sanitizeKey(key);
+    try {
+      await SecureStore.deleteItemAsync(sKey);
+    } catch (e) {
+      if (__DEV__) console.warn("[AuthStorage] SecureStore.deleteItem error:", sKey, e);
+    }
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch {}
+  },
+};
+
+/** 🔐 Auth com persistência segura (mobile) e padrão (web) */
 let auth;
 if (Platform.OS === "web") {
   auth = getAuth(app);
 } else {
-  // ⚠️ Nunca chame getAuth antes! InitializeAuth precisa vir primeiro.
-  const existingApps = getApps();
-  // Se não houver Auth criado ainda, inicializa corretamente
   try {
     auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+      persistence: getReactNativePersistence(hybridSecureAdapter),
     });
   } catch {
-    // Se já estava inicializado por algum outro módulo, pega a instância
     auth = getAuth(app);
   }
 }
@@ -66,6 +133,7 @@ export {
   db,
   firestoreDb,
   auth,
+  // RTDB helpers
   ref,
   set,
   get,
@@ -74,6 +142,7 @@ export {
   query,
   orderByChild,
   equalTo,
+  // Auth helpers
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,

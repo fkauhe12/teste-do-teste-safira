@@ -1,3 +1,4 @@
+// screens/HomeScreen.js
 import React, { useRef, useState, useEffect } from "react";
 import {
   View,
@@ -23,6 +24,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { firestoreDb, auth, db } from "../services/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { ref, get } from "firebase/database";
+import { loadProdutosFromCache, saveProdutosToCache } from "../services/productCache";
 
 const { width } = Dimensions.get("window");
 
@@ -99,21 +101,37 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
 
   //
-  // 🔥 Carrega produtos do Firestore
+  // 🔥 Carrega produtos com cache (AsyncStorage) + Firestore
   //
   useEffect(() => {
-    const fetchProdutos = async () => {
+    let mounted = true;
+
+    (async () => {
       try {
+        // 1) Tenta cache primeiro (UX rápido)
+        const cached = await loadProdutosFromCache();
+        if (mounted && cached?.length) {
+          setProdutos(cached);
+          setLoading(false);
+        }
+
+        // 2) Busca online e atualiza lista + cache
         const snap = await getDocs(collection(firestoreDb, "produtos"));
         const dados = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setProdutos(dados);
+        if (mounted) {
+          setProdutos(dados);
+          setLoading(false);
+        }
+        await saveProdutosToCache(dados);
       } catch (e) {
         console.error("Erro ao carregar produtos:", e);
-      } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
+    })();
+
+    return () => {
+      mounted = false;
     };
-    fetchProdutos();
   }, []);
 
   //

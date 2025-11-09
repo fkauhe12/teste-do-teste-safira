@@ -11,17 +11,28 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
+  sendEmailVerification,
 } from "firebase/auth";
 
-const normalizeEmail = (email) => email.trim().toLowerCase();
+const normalizeEmail = (email) => (email || "").trim().toLowerCase();
 const onlyDigits = (v) => (v || "").replace(/\D/g, "");
 const looksLikePhone = (v) => onlyDigits(v).length >= 8;
 const phoneKeyFrom = (phone) => onlyDigits(phone); // usamos só dígitos como chave
+
+// Envia email de verificação para o usuário logado
+export const resendVerificationEmail = async () => {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Nenhum usuário autenticado");
+  if (user.emailVerified) return;
+  // Sem actionCodeSettings para usar o fluxo padrão do Firebase
+  await sendEmailVerification(user);
+};
 
 export const register = async (userData) => {
   const {
     fullName,
     telefone,
+    cpf, // opcional
     email,
     senha,
     address,
@@ -54,6 +65,8 @@ export const register = async (userData) => {
       fullName,
       telefone,
       telefoneSanitized: phoneKey,
+      cpf: cpf || "",
+      cpfSanitized: cpf ? onlyDigits(cpf) : "",
       email: normalizeEmail(email),
       address,
       city,
@@ -66,10 +79,18 @@ export const register = async (userData) => {
     updateProfile(userCred.user, { displayName: fullName }).catch(() => {}),
   ]);
 
+  // 4) Envia e-mail de verificação
+  try {
+    await sendEmailVerification(userCred.user);
+  } catch {
+    // silencioso; usuário pode reenviar na Step 4
+  }
+
   return userCred;
 };
 
 export const login = async (identifier, password) => {
+  // Permite login com e-mail OU telefone
   const id = (identifier || "").trim();
   let emailToUse = id;
 
@@ -86,7 +107,20 @@ export const login = async (identifier, password) => {
     emailToUse = snap.val().email;
   }
 
-  return signInWithEmailAndPassword(auth, normalizeEmail(emailToUse), password);
+  // Faz login
+  const cred = await signInWithEmailAndPassword(auth, normalizeEmail(emailToUse), password);
+
+  // Se não estiver verificado, envia e-mail e dispara erro específico.
+  if (!cred.user.emailVerified) {
+    try {
+      await sendEmailVerification(cred.user);
+    } catch {}
+    const e = new Error("E-mail não verificado. Enviamos um novo link.");
+    e.code = "auth/email-not-verified";
+    throw e; // NOTA: o usuário permanece autenticado; a UI vai tratar (Step 4)
+  }
+
+  return cred;
 };
 
 export const mapAuthError = (error) => {
@@ -105,6 +139,8 @@ export const mapAuthError = (error) => {
       return "Muitas tentativas. Tente novamente mais tarde";
     case "auth/network-request-failed":
       return "Falha de rede. Verifique sua conexão";
+    case "auth/email-not-verified":
+      return "Seu e-mail ainda não foi verificado. Verifique sua caixa de entrada.";
     default:
       return error?.message || "Erro inesperado";
   }
