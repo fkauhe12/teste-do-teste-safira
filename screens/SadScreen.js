@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
   Animated,
   Dimensions,
   Keyboard,
@@ -32,11 +31,9 @@ function parseBoldSegments(str) {
   if (typeof str !== "string") return [{ text: "", bold: false }];
   const result = [];
   const regex = /\*\*(.+?)\*\*/g;
-  let lastIndex = 0,
-    match;
+  let lastIndex = 0, match;
   while ((match = regex.exec(str))) {
-    if (match.index > lastIndex)
-      result.push({ text: str.slice(lastIndex, match.index), bold: false });
+    if (match.index > lastIndex) result.push({ text: str.slice(lastIndex, match.index), bold: false });
     result.push({ text: match[1], bold: true });
     lastIndex = regex.lastIndex;
   }
@@ -62,13 +59,19 @@ export default function SadScreen({ navigation }) {
   const [isSending, setIsSending] = useState(false);
   const [messages, setMessages] = useState([]);
   const [userName, setUserName] = useState(null);
+
+  const [barHeight, setBarHeight] = useState(76); // altura base da barra (sem teclado)
+  const [kbHeight, setKbHeight] = useState(0);    // altura do teclado no Android
+  const [kbVisible, setKbVisible] = useState(false);
+
   const flatListRef = useRef(null);
   const insets = useSafeAreaInsets();
 
-  // Slide da modal
+  // Animação de entrada da modal
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  // Altura do teclado animada (rápida)
-  const keyboardHeight = useRef(new Animated.Value(0)).current;
+
+  // Sobe só a barra no Android
+  const kbAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(slideAnim, {
@@ -78,27 +81,39 @@ export default function SadScreen({ navigation }) {
     }).start();
   }, []);
 
-  // As mensagens e o input sobem juntos quando o teclado aparece
+  // Android: anima a barra com o teclado (gradiente fica ancorado no rodapé)
   useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
-      Animated.timing(keyboardHeight, {
-        toValue: e.endCoordinates.height,
-        duration: 100, // mais rápido → menos delay
+    if (Platform.OS !== "android") return;
+
+    const onShow = (e) => {
+      const h = e?.endCoordinates?.height || 0;
+      const target = Math.max(0, h - insets.bottom);
+      setKbVisible(true);
+      setKbHeight(target);
+      Animated.timing(kbAnim, {
+        toValue: target,
+        duration: 200,
         useNativeDriver: false,
       }).start();
-    });
-    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
-      Animated.timing(keyboardHeight, {
+    };
+
+    const onHide = () => {
+      setKbVisible(false);
+      setKbHeight(0);
+      Animated.timing(kbAnim, {
         toValue: 0,
-        duration: 100,
+        duration: 180,
         useNativeDriver: false,
       }).start();
-    });
+    };
+
+    const showSub = Keyboard.addListener("keyboardDidShow", onShow);
+    const hideSub = Keyboard.addListener("keyboardDidHide", onHide);
     return () => {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [insets.bottom, kbAnim]);
 
   // Mensagem inicial automática
   useEffect(() => {
@@ -147,11 +162,7 @@ export default function SadScreen({ navigation }) {
       setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
     } catch {
       setMessages((prev) => [
-        {
-          id: `${Date.now()}_bot_error`,
-          text: "Ops! Erro ao gerar resposta 😢",
-          sender: "bot",
-        },
+        { id: `${Date.now()}_bot_error`, text: "Ops! Erro ao gerar resposta 😢", sender: "bot" },
         ...prev,
       ]);
     } finally {
@@ -167,15 +178,23 @@ export default function SadScreen({ navigation }) {
     }).start(() => navigation.goBack());
   };
 
+  // Espaço para a FlatList não ficar atrás do input/gradiente:
+  // IMPORTANTE: como a lista é invertida, usamos paddingTop (não paddingBottom)
+  const listTopPadding =
+    15 + // padding do conteúdo
+    barHeight + // altura da barra quando teclado fechado
+    (Platform.OS === "android" ? kbHeight : 0); // sobe junto com teclado no Android
+
   return (
     <View style={styles.modalOverlay}>
       <Animated.View
         style={[styles.modalContainer, { transform: [{ translateY: slideAnim }] }]}
       >
+        {/* iOS usa KeyboardAvoidingView; Android não (animamos só a barra) */}
         <KeyboardAvoidingView
           style={styles.flexContainer}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={StatusBar.currentHeight || insets.top}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
         >
           {/* HEADER */}
           <View style={styles.header}>
@@ -185,8 +204,8 @@ export default function SadScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* CHAT + INPUT juntos, animando com o teclado */}
-          <Animated.View style={[styles.chatContainer, { marginBottom: keyboardHeight }]}>
+          {/* CHAT + INPUT */}
+          <View style={styles.chatContainer}>
             <FlatList
               ref={flatListRef}
               data={messages}
@@ -213,14 +232,35 @@ export default function SadScreen({ navigation }) {
               }}
               inverted
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ padding: 15 }}
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+              contentContainerStyle={{ paddingHorizontal: 15, paddingTop: listTopPadding }}
+              style={{ zIndex: 1 }}
             />
 
+            {/* Gradiente FIXO ancorado no rodapé (não sobe com o teclado) */}
             <LinearGradient
               colors={["#051d74ff", "#0E2E98", "#2051f3ff"]}
               start={{ x: 0, y: 1 }}
               end={{ x: 1, y: 0 }}
-              style={[styles.inputContainer, { paddingBottom: insets.bottom + 6 }]}
+              pointerEvents="none"
+              style={[styles.footerGradient, { height: Math.max(barHeight, 72) }]}
+            />
+
+            {/* Barra de input (só ela sobe no Android) */}
+            <Animated.View
+              style={[
+                styles.inputBar,
+                {
+                  bottom: Platform.OS === "android" ? kbAnim : 0,
+                  paddingBottom: 12 + insets.bottom, // safe area
+                },
+              ]}
+              onLayout={(e) => {
+                // mede a altura real da barra apenas quando o teclado não está visível
+                if (!kbVisible) {
+                  setBarHeight(Math.ceil(e.nativeEvent.layout.height + 30));
+                }
+              }}
             >
               <TextInput
                 style={styles.input}
@@ -237,8 +277,8 @@ export default function SadScreen({ navigation }) {
                   <Ionicons name="send" size={24} color="#3E57AC" />
                 </View>
               </TouchableOpacity>
-            </LinearGradient>
-          </Animated.View>
+            </Animated.View>
+          </View>
         </KeyboardAvoidingView>
       </Animated.View>
     </View>
@@ -253,10 +293,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContainer: {
-    height: SCREEN_HEIGHT * 0.93,
+    height: "93%", // evita travar altura quando teclado abre
     backgroundColor: "#e6e6e6",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    overflow: "hidden", // cantos arredondados OK
   },
   header: {
     flexDirection: "row",
@@ -267,7 +308,7 @@ const styles = StyleSheet.create({
   backButton: { flexDirection: "row", alignItems: "center" },
   backText: { marginLeft: 6, fontSize: 18, fontWeight: "600", color: "#444" },
 
-  chatContainer: { flex: 1, justifyContent: "flex-end" },
+  chatContainer: { flex: 1, justifyContent: "flex-end", position: "relative" },
 
   messageBubble: {
     padding: 12,
@@ -286,14 +327,31 @@ const styles = StyleSheet.create({
   userText: { color: "#fff" },
   boldText: { fontWeight: "700" },
 
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+  // Gradiente fixo no rodapé, atrás de tudo
+  footerGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
   },
+
+  // Barra de input (fica acima da lista e sobe no Android)
+  inputBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    backgroundColor: "transparent",
+  },
+
   input: {
     flex: 1,
     backgroundColor: "#fff",

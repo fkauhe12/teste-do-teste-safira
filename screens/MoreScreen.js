@@ -72,12 +72,16 @@ const getShortName = (fullName = "") => {
 const MoreScreen = ({ navigation }) => {
   const logoSource = getLogoSource();
   const [greetingName, setGreetingName] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isDriver, setIsDriver] = useState(false);
 
   // Busca nome do usuário logado (displayName instantâneo + atualiza com DB)
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setGreetingName("");
+        setIsAdmin(false);
+        setIsDriver(false);
         return;
       }
 
@@ -87,21 +91,54 @@ const MoreScreen = ({ navigation }) => {
         (user.email ? user.email.split("@")[0] : "");
       setGreetingName(immediate);
 
-      // 2) tenta atualizar com o fullName do Realtime Database
+      // 2) prioriza claims do token (mais seguro). Se não existir, tenta RTDB como fallback.
       try {
-        const snap = await get(ref(db, `users/${user.uid}`));
-        const fullName =
-          (snap.exists() && (snap.val()?.fullName || "").trim()) || "";
-        const short = getShortName(fullName);
-        if (short) setGreetingName(short);
-      } catch {
-        // mantém o immediate se falhar
+        // força leitura do token para pegar claims atualizadas
+        const idRes = await user.getIdTokenResult();
+        const claims = idRes.claims || {};
+        if (claims.admin) setIsAdmin(true);
+        if (claims.driver) setIsDriver(true);
+
+        // se não encontrou claims, tenta RTDB (fallback para dev/testing)
+        if (!claims.admin && !claims.driver) {
+          const snap = await get(ref(db, `users/${user.uid}`));
+          const fullName =
+            (snap.exists() && (snap.val()?.fullName || "").trim()) || "";
+          const short = getShortName(fullName);
+          if (short) setGreetingName(short);
+
+          if (snap.exists()) {
+            const data = snap.val() || {};
+            const role = (data.role || "").toLowerCase();
+            const rolesObj = data.roles || {};
+            const isAdminFlag = !!data.isAdmin || role === "admin" || !!rolesObj.admin;
+            const isDriverFlag = !!data.isDriver || role === "driver" || !!rolesObj.driver;
+            setIsAdmin(Boolean(isAdminFlag));
+            setIsDriver(Boolean(isDriverFlag));
+          }
+        }
+      } catch (err) {
+        console.warn('MoreScreen: failed to read token or DB', err?.message);
       }
     });
     return () => unsub();
   }, []);
 
   const greetingText = `Olá, ${greetingName || "Visitante"}!`;
+
+  // Dev helper: mostrar UID e claims para facilitar testes
+  const [devInfo, setDevInfo] = useState(null);
+  const refreshClaims = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      await user.getIdTokenResult(true);
+      const idRes = await user.getIdTokenResult();
+      setDevInfo({ uid: user.uid, email: user.email, claims: idRes.claims });
+    } catch (e) {
+      console.warn('refreshClaims error', e?.message);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -165,7 +202,57 @@ const MoreScreen = ({ navigation }) => {
               <Ionicons name="create-outline" size={20} color="#000" />
               <Text style={styles.infoText}>Alterar dados</Text>
             </TouchableOpacity>
+
+            {/* Área Admin - visível apenas para admins */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={styles.infoItem}
+                onPress={() => navigation.navigate("AdminPanel")}
+              >
+                <Ionicons name="shield-checkmark-outline" size={20} color="#000" />
+                <Text style={styles.infoText}>Painel Admin</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Meus Pedidos - disponível para usuário logado */}
+            <TouchableOpacity
+              style={styles.infoItem}
+              onPress={() => navigation.navigate('MyOrders')}
+            >
+              <Ionicons name="receipt-outline" size={20} color="#000" />
+              <Text style={styles.infoText}>Meus Pedidos</Text>
+            </TouchableOpacity>
+
+            {/* Área Entregador - visível apenas para entregadores */}
+            {isDriver && (
+              <TouchableOpacity
+                style={styles.infoItem}
+                onPress={() => navigation.navigate("EntregadorMap")}
+              >
+                <Ionicons name="bicycle-outline" size={20} color="#000" />
+                <Text style={styles.infoText}>Área do Entregador</Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          {__DEV__ && (
+            <View style={{ paddingHorizontal: 20, marginTop: 12 }}>
+              <Text style={{ fontWeight: '700', marginBottom: 8 }}>Dev Debug</Text>
+              <TouchableOpacity style={[styles.infoItem, { justifyContent: 'space-between' }]} onPress={refreshClaims}>
+                <Text style={styles.infoText}>Atualizar Claims / Mostrar UID</Text>
+              </TouchableOpacity>
+              {devInfo && (
+                <View style={{ padding: 10, backgroundColor: '#fff', borderRadius: 8, marginTop: 8 }}>
+                  <Text>UID: {devInfo.uid}</Text>
+                  <Text>Email: {devInfo.email}</Text>
+                  <Text>Claims: {JSON.stringify(devInfo.claims)}</Text>
+                  <TouchableOpacity style={[styles.btnSmall, { marginTop: 8 }]} onPress={() => navigation.navigate('AdminPanel')}>
+                    <Text style={{ color: '#fff' }}>Ir para AdminPanel (DEV)</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
         </ScrollView>
       </View>
 
@@ -183,7 +270,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    marginBottom: Platform.OS === "web" ? 70 : Platform.OS === "ios" ? 60 : 60,
+    marginBottom: Platform.OS === "web" ? 70 : Platform.OS === "ios" ?200: 200,
   },
   header: {
     height: "18%",
@@ -273,5 +360,12 @@ const styles = StyleSheet.create({
   infoText: {
     marginLeft: 10,
     fontSize: 16,
+  },
+  btnSmall: {
+    backgroundColor: '#425bab',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
   },
 });

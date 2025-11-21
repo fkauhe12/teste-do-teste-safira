@@ -32,6 +32,11 @@ yarn-error.*
 
 # local env files
 .env*.local
+# dotenv
+.env
+
+# service account (do not commit)
+scripts/serviceAccountKey.json
 
 # typescript
 *.tsbuildinfo

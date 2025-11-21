@@ -15,10 +15,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fkauhe12.testessafira",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "fetch"
-        ],
-        "UIViewControllerBasedStatusBarAppearance": false
+        "UIBackgroundModes": ["fetch", "remote-notification"],
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "NSUserTrackingUsageDescription": "Este app precisa rastrear dados para fornecer notificações personalizadas."
       }
     },
     "android": {
@@ -26,12 +25,16 @@
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "googleServicesFile": "./google-services.json",
       "package": "com.fkauhe12.testessafira",
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "POST_NOTIFICATIONS"
       ],
       "versionCode": 1
     },
@@ -41,7 +44,14 @@
     },
     "plugins": [
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icons/notification-icon.png",
+          "color": "#4873FF"
+        }
+      ]
     ],
     "extra": {
       "eas": {

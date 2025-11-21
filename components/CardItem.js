@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-export default function CardItem({ 
+function CardItem({ 
   title, 
   description, 
   price, 
@@ -12,7 +12,28 @@ export default function CardItem({
   style,
   discount,
   rating,
+  reloadKey,
 }) {
+  const [imgError, setImgError] = useState(false);
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handleAddPress = () => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 1.12, duration: 120, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start(() => {
+      if (typeof onAdd === 'function') onAdd();
+    });
+  };
+
+  const placeholder = require("../assets/icons/icon_car_vazio.png");
+  // If parent requests reload (e.g., screen focus changed), reset any image error
+  React.useEffect(() => {
+    if (reloadKey) {
+      setImgError(false);
+    }
+  }, [reloadKey]);
+
   return (
     <TouchableOpacity 
       style={[styles.container, style]} 
@@ -21,10 +42,19 @@ export default function CardItem({
     >
       {/* Imagem do produto */}
       <View style={styles.imageContainer}>
-        <Image 
-          source={typeof imageUrl === 'string' ? { uri: imageUrl } : imageUrl}
+        <Image
+          // key forces remount when reloadKey changes
+          key={(imageUrl ? String(imageUrl) : 'noimage') + '|' + (reloadKey || '')}
+          source={
+            imgError || !imageUrl
+              ? placeholder
+              : typeof imageUrl === 'string'
+              ? { uri: imageUrl }
+              : imageUrl
+          }
           style={styles.image}
           resizeMode="cover"
+          onError={() => setImgError(true)}
         />
         
         {/* Badge de desconto */}
@@ -65,13 +95,15 @@ export default function CardItem({
               </View>
             )}
 
-            <TouchableOpacity
-              style={styles.smallAddButton}
-              onPress={onAdd}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.smallAddButtonText}>+</Text>
-            </TouchableOpacity>
+            <Animated.View style={[{ transform: [{ scale }] }]}>
+              <TouchableOpacity
+                style={styles.smallAddButton}
+                onPress={handleAddPress}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.smallAddButtonText}>+</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </View>
       </View>
@@ -180,3 +212,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+export default React.memo(CardItem);

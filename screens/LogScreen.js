@@ -845,7 +845,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
-  backButton: { backgroundColor: "#ffffffff" },
+  backButton: { backgroundColor: "#444444ff" },
   backButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
   errorText: { color: "#e63946", fontSize: 13, textAlign: "center", marginBottom: 8 },
   connectedBox: {
