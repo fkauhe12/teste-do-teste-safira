@@ -15,9 +15,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fkauhe12.testessafira",
       "infoPlist": {
-        "UIBackgroundModes": ["fetch", "remote-notification"],
-        "UIViewControllerBasedStatusBarAppearance": false,
-        "NSUserTrackingUsageDescription": "Este app precisa rastrear dados para fornecer notificações personalizadas."
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -25,7 +23,6 @@
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "googleServicesFile": "./google-services.json",
       "package": "com.fkauhe12.testessafira",
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
@@ -37,10 +34,6 @@
         "POST_NOTIFICATIONS"
       ],
       "versionCode": 1
-    },
-    "web": {
-      "bundler": "metro",
-      "favicon": "./assets/icons/favicon.png"
     },
     "plugins": [
       "expo-font",

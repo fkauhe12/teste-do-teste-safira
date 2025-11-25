@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
   StatusBar,
+  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -160,7 +161,7 @@ const MoreScreen = ({ navigation }) => {
 
           <Text style={styles.greeting}>{greetingText}</Text>
 
-          <TouchableOpacity style={styles.notification}>
+          <TouchableOpacity style={styles.notification} onPress={() => navigation.navigate('Notifications')}>
             <Ionicons name="notifications-outline" size={24} color="#000" />
             <View style={styles.badge}>
               <Text style={styles.badgeText}>1</Text>
@@ -169,11 +170,13 @@ const MoreScreen = ({ navigation }) => {
         </LinearGradient>
 
         {/* Body */}
-        <ScrollView style={styles.body}>
+        <ScrollView style={styles.body} keyboardShouldPersistTaps="always">
           {/* Botão Entrar */}
           <TouchableOpacity
             style={styles.loginButton}
             onPress={() => navigation.navigate("Log")}
+            activeOpacity={0.85}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <LinearGradient
               colors={["#4873FF", "#3E57AC", "#0E2E98"]}
@@ -235,28 +238,11 @@ const MoreScreen = ({ navigation }) => {
             )}
           </View>
 
-          {__DEV__ && (
-            <View style={{ paddingHorizontal: 20, marginTop: 12 }}>
-              <Text style={{ fontWeight: '700', marginBottom: 8 }}>Dev Debug</Text>
-              <TouchableOpacity style={[styles.infoItem, { justifyContent: 'space-between' }]} onPress={refreshClaims}>
-                <Text style={styles.infoText}>Atualizar Claims / Mostrar UID</Text>
-              </TouchableOpacity>
-              {devInfo && (
-                <View style={{ padding: 10, backgroundColor: '#fff', borderRadius: 8, marginTop: 8 }}>
-                  <Text>UID: {devInfo.uid}</Text>
-                  <Text>Email: {devInfo.email}</Text>
-                  <Text>Claims: {JSON.stringify(devInfo.claims)}</Text>
-                  <TouchableOpacity style={[styles.btnSmall, { marginTop: 8 }]} onPress={() => navigation.navigate('AdminPanel')}>
-                    <Text style={{ color: '#fff' }}>Ir para AdminPanel (DEV)</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          )}
+          {/* Dev debug removed - production build */}
         </ScrollView>
       </View>
 
-      <GlobalBottomBar currentRouteName="More" navigate={navigation.navigate} />
+      {/* GlobalBottomBar is rendered by AppNavigator; remove duplicate to avoid overlays */}
     </View>
   );
 };

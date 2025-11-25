@@ -1,6 +1,6 @@
 // navigation/AppNavigator.js
 import React, { useState, useRef } from "react";
-import { View } from "react-native";
+import { View, Platform } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { CartProvider } from "../context/CartContext";
@@ -84,10 +84,16 @@ export default function AppNavigator() {
             <Stack.Screen
               name="Log"
               component={LogScreen}
-              options={{
-                presentation: "transparentModal",
-                cardStyle: { backgroundColor: "transparent" },
-              }}
+              options={
+                Platform.OS === 'ios'
+                  ? {
+                      presentation: 'transparentModal',
+                      cardStyle: { backgroundColor: 'transparent' },
+                    }
+                  : {
+                      cardStyle: { backgroundColor: 'transparent' },
+                    }
+              }
             />
           </Stack.Navigator>
         </NavigationContainer>
