@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CardItem from '../components/CardItem';
 import GlobalBottomBar from '../components/GlobalBottomBar';
 import { anuncios } from '../data/anuncios';
@@ -40,11 +40,13 @@ const stripAccents = (s) => {
     return '';
   }
 };
+
 const capitalize = (s) => {
   if (typeof s !== 'string' || !s.trim()) return '';
   const clean = stripAccents(s);
   return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
 };
+
 const getShortName = (fullName) => {
   if (!fullName) return '';
   const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
@@ -80,9 +82,10 @@ export default function HomeScreen({ navigation }) {
   const { addToCart } = useCart();
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Carrega produtos (cache + Firestore)
   useEffect(() => {
     let mounted = true;
-    // Defer heavy fetch until after interactions to avoid jank on Android startup
+
     InteractionManager.runAfterInteractions(() => {
       (async () => {
         try {
@@ -102,21 +105,30 @@ export default function HomeScreen({ navigation }) {
         }
       })();
     });
-    return () => (mounted = false);
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // When screen gains focus, bump reloadKey to force image components to remount/reload (fix Android image pause after navigation)
+  // Ao focar a tela, força recarregar imagens (Android fix)
   useFocusEffect(
     useCallback(() => {
       setReloadKey((k) => k + 1);
     }, [])
   );
 
-  // Memoized handlers map so render doesn't recreate many functions every frame
+  // Handlers memoizados para addToCart
   const addHandlers = useMemo(() => {
     const map = {};
     produtos.forEach((p) => {
-      map[p.id] = () => addToCart({ id: p.id, nome: p.nome, preco: Number(p.preco), imageUrl: p.imageUrl });
+      map[p.id] = () =>
+        addToCart({
+          id: p.id,
+          nome: p.nome,
+          preco: Number(p.preco),
+          imageUrl: p.imageUrl,
+        });
     });
     return map;
   }, [produtos, addToCart]);
@@ -125,12 +137,14 @@ export default function HomeScreen({ navigation }) {
   const maisPesquisados = produtos.filter((p) => p.maisPesquisado);
   const maisVendidos = produtos.filter((p) => p.maisVendido);
 
+  // Nome do usuário
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) return setGreetingName('');
       try {
         const snap = await get(ref(db, `users/${user.uid}`));
-        const fullName = (snap.exists() && snap.val().fullName) || user.displayName || '';
+        const fullName =
+          (snap.exists() && snap.val().fullName) || user.displayName || '';
         const short = getShortName(fullName);
         setGreetingName(short || user.email?.split('@')[0] || '');
       } catch (e) {
@@ -140,13 +154,21 @@ export default function HomeScreen({ navigation }) {
     return () => unsub();
   }, []);
 
-  // unread notifications badge
+  // Badge de notificações não lidas
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
     try {
-      const q = query(collection(firestoreDb, 'notifications'), where('userId', '==', user.uid), where('read', '==', false));
-      const unsub = onSnapshot(q, (snap) => setNotifCount(snap.size || 0), (err) => console.warn('notif listen', err?.message));
+      const q = query(
+        collection(firestoreDb, 'notifications'),
+        where('userId', '==', user.uid),
+        where('read', '==', false)
+      );
+      const unsub = onSnapshot(
+        q,
+        (snap) => setNotifCount(snap.size || 0),
+        (err) => console.warn('notif listen', err?.message)
+      );
       return () => unsub();
     } catch (e) {
       console.warn('notif watch failed', e?.message);
@@ -169,34 +191,96 @@ export default function HomeScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaProvider style={styles.container} edges={["top", "left", "right"]}>
+    <View style={styles.container}>
+      {/* A BottomBar global é renderizada pelo AppNavigator.
+         Aqui você só passa 'Home' para manter coerente se quiser
+         renderizar localmente em web ou testes isolados. */}
       <GlobalBottomBar currentRouteName="Home" navigate={navigation.navigate} />
+
       <Animated.View style={{ flex: 1, marginBottom: 60 }}>
-        <LinearGradient colors={["#0E2E98", "#3E57AC", "#4873FF"]} start={{ x: 0, y: 1 }} end={{ x: 1, y: 1 }} style={styles.header}>
+        {/* Cabeçalho */}
+        <LinearGradient
+          colors={['#0E2E98', '#3E57AC', '#4873FF']}
+          start={{ x: 0, y: 1 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
           <Image source={logo} style={styles.logo} />
-          <Text style={styles.greeting}>{`Olá, ${greetingName || 'Visitante'}!`}</Text>
-          <TouchableOpacity style={styles.notification} onPress={() => navigation.navigate('Notifications')}>
+          <Text style={styles.greeting}>
+            {`Olá, ${greetingName || 'Visitante'}!`}
+          </Text>
+          <TouchableOpacity
+            style={styles.notification}
+            onPress={() => navigation.navigate('Notifications')}
+          >
             <Ionicons name="notifications-outline" size={24} color="#000" />
             {notifCount > 0 && (
-              <View style={styles.badge}><Text style={styles.badgeText}>{notifCount > 99 ? '99+' : notifCount}</Text></View>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {notifCount > 99 ? '99+' : notifCount}
+                </Text>
+              </View>
             )}
           </TouchableOpacity>
         </LinearGradient>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}>
+        {/* Conteúdo */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: insets.bottom + 100 },
+          ]}
+        >
+          {/* Carrossel de anúncios */}
           <Text style={styles.carouselTitle}>Anúncios de Recomendação</Text>
-          <ScrollView ref={scrollViewRef} horizontal pagingEnabled onMomentumScrollEnd={handleMomentumScrollEnd} showsHorizontalScrollIndicator={false} style={styles.carousel}>
-            {[anuncios[numAnuncios - 1], ...anuncios, anuncios[0]].map((anuncio, i) => (
-              <ImageBackground key={i} source={anuncio.URLImagem} style={[styles.anuncioCard, { width: width * 0.9 }]} imageStyle={{ borderRadius: 15 }}>
-                <LinearGradient colors={["rgba(0,0,0,0.1)", "transparent"]} style={styles.anuncioOverlay}>
-                  <Text style={styles.anuncioTitulo}>{anuncio.titulo}</Text>
-                  <Text style={styles.anuncioDescricao}>{anuncio.descricao}</Text>
-                </LinearGradient>
-              </ImageBackground>
-            ))}
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            pagingEnabled
+            onMomentumScrollEnd={handleMomentumScrollEnd}
+            showsHorizontalScrollIndicator={false}
+            style={styles.carousel}
+          >
+            {[anuncios[numAnuncios - 1], ...anuncios, anuncios[0]].map(
+              (anuncio, i) => (
+                <ImageBackground
+                  key={i}
+                  source={anuncio.URLImagem}
+                  style={[
+                    styles.anuncioCard,
+                    { width: width * 0.9 },
+                  ]}
+                  imageStyle={{ borderRadius: 15 }}
+                >
+                  <LinearGradient
+                    colors={['rgba(0,0,0,0.1)', 'transparent']}
+                    style={styles.anuncioOverlay}
+                  >
+                    <Text style={styles.anuncioTitulo}>{anuncio.titulo}</Text>
+                    <Text style={styles.anuncioDescricao}>
+                      {anuncio.descricao}
+                    </Text>
+                  </LinearGradient>
+                </ImageBackground>
+              )
+            )}
           </ScrollView>
-          {numAnuncios > 1 && <PaginationDots total={numAnuncios} activeIndex={activeIndex - 1} onDotPress={(i)=>{ scrollViewRef.current?.scrollTo({ x: (i+1)*loopItemWidth, animated: true}); setActiveIndex(i+1); }} />}
+          {numAnuncios > 1 && (
+            <PaginationDots
+              total={numAnuncios}
+              activeIndex={activeIndex - 1}
+              onDotPress={(i) => {
+                scrollViewRef.current?.scrollTo({
+                  x: (i + 1) * loopItemWidth,
+                  animated: true,
+                });
+                setActiveIndex(i + 1);
+              }}
+            />
+          )}
 
+          {/* Top do Momento */}
           {topDoMomento.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>🔥 Top do Momento</Text>
@@ -207,7 +291,15 @@ export default function HomeScreen({ navigation }) {
                 contentContainerStyle={styles.horizontalList}
                 keyExtractor={(i) => i.id}
                 renderItem={({ item }) => {
-                  const handler = addHandlers[item.id] || (() => addToCart({ id: item.id, nome: item.nome, preco: Number(item.preco), imageUrl: item.imageUrl }));
+                  const handler =
+                    addHandlers[item.id] ||
+                    (() =>
+                      addToCart({
+                        id: item.id,
+                        nome: item.nome,
+                        preco: Number(item.preco),
+                        imageUrl: item.imageUrl,
+                      }));
                   return (
                     <CardItem
                       key={item.id}
@@ -216,7 +308,9 @@ export default function HomeScreen({ navigation }) {
                       price={item.preco}
                       imageUrl={item.imageUrl}
                       style={styles.horizontalCard}
-                      onPress={() => navigation.navigate('ProductDetail', { produto: item })}
+                      onPress={() =>
+                        navigation.navigate('ProductDetail', { produto: item })
+                      }
                       onAdd={handler}
                       reloadKey={reloadKey}
                     />
@@ -226,6 +320,7 @@ export default function HomeScreen({ navigation }) {
             </>
           )}
 
+          {/* Mais Vendidos */}
           {maisVendidos.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>💎 Mais Vendidos</Text>
@@ -236,7 +331,15 @@ export default function HomeScreen({ navigation }) {
                 contentContainerStyle={styles.horizontalList}
                 keyExtractor={(i) => i.id}
                 renderItem={({ item }) => {
-                  const handler = addHandlers[item.id] || (() => addToCart({ id: item.id, nome: item.nome, preco: Number(item.preco), imageUrl: item.imageUrl }));
+                  const handler =
+                    addHandlers[item.id] ||
+                    (() =>
+                      addToCart({
+                        id: item.id,
+                        nome: item.nome,
+                        preco: Number(item.preco),
+                        imageUrl: item.imageUrl,
+                      }));
                   return (
                     <CardItem
                       key={item.id}
@@ -245,7 +348,9 @@ export default function HomeScreen({ navigation }) {
                       price={item.preco}
                       imageUrl={item.imageUrl}
                       style={styles.horizontalCard}
-                      onPress={() => navigation.navigate('ProductDetail', { produto: item })}
+                      onPress={() =>
+                        navigation.navigate('ProductDetail', { produto: item })
+                      }
                       onAdd={handler}
                       reloadKey={reloadKey}
                     />
@@ -255,6 +360,7 @@ export default function HomeScreen({ navigation }) {
             </>
           )}
 
+          {/* Mais Pesquisados */}
           {maisPesquisados.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>📈 Mais Pesquisados</Text>
@@ -265,7 +371,15 @@ export default function HomeScreen({ navigation }) {
                 contentContainerStyle={styles.horizontalList}
                 keyExtractor={(i) => i.id}
                 renderItem={({ item }) => {
-                  const handler = addHandlers[item.id] || (() => addToCart({ id: item.id, nome: item.nome, preco: Number(item.preco), imageUrl: item.imageUrl }));
+                  const handler =
+                    addHandlers[item.id] ||
+                    (() =>
+                      addToCart({
+                        id: item.id,
+                        nome: item.nome,
+                        preco: Number(item.preco),
+                        imageUrl: item.imageUrl,
+                      }));
                   return (
                     <CardItem
                       key={item.id}
@@ -274,7 +388,9 @@ export default function HomeScreen({ navigation }) {
                       price={item.preco}
                       imageUrl={item.imageUrl}
                       style={styles.horizontalCard}
-                      onPress={() => navigation.navigate('ProductDetail', { produto: item })}
+                      onPress={() =>
+                        navigation.navigate('ProductDetail', { produto: item })
+                      }
                       onAdd={handler}
                       reloadKey={reloadKey}
                     />
@@ -284,6 +400,7 @@ export default function HomeScreen({ navigation }) {
             </>
           )}
 
+          {/* Lista geral de produtos */}
           <Text style={styles.sectionTitle}>🛒 Produtos</Text>
           <FlatList
             data={produtos}
@@ -292,7 +409,15 @@ export default function HomeScreen({ navigation }) {
             contentContainerStyle={styles.horizontalList}
             keyExtractor={(i) => i.id}
             renderItem={({ item }) => {
-              const handler = addHandlers[item.id] || (() => addToCart({ id: item.id, nome: item.nome, preco: Number(item.preco), imageUrl: item.imageUrl }));
+              const handler =
+                addHandlers[item.id] ||
+                (() =>
+                  addToCart({
+                    id: item.id,
+                    nome: item.nome,
+                    preco: Number(item.preco),
+                    imageUrl: item.imageUrl,
+                  }));
               return (
                 <CardItem
                   key={item.id}
@@ -301,40 +426,123 @@ export default function HomeScreen({ navigation }) {
                   price={item.preco}
                   imageUrl={item.imageUrl}
                   style={styles.horizontalCard}
-                  onPress={() => navigation.navigate('ProductDetail', { produto: item })}
+                  onPress={() =>
+                    navigation.navigate('ProductDetail', { produto: item })
+                  }
                   onAdd={handler}
                   reloadKey={reloadKey}
                 />
               );
             }}
           />
-
         </ScrollView>
       </Animated.View>
-    </SafeAreaProvider>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#d9d9d9' },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { height: '16%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 22, minHeight: 72, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 },
+
+  header: {
+    height: '16%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 22,
+    minHeight: 72,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+  },
   logo: { width: 52, height: 52, resizeMode: 'contain', borderRadius: 100 },
-  greeting: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '600', marginLeft: 10 },
-  notification: { position: 'relative', backgroundColor: '#fff', borderRadius: 1000, padding: 6 },
-  badge: { position: 'absolute', top: -5, right: -5, backgroundColor: 'red', borderRadius: 1000, paddingHorizontal: 6 },
+  greeting: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 10,
+  },
+  notification: {
+    position: 'relative',
+    backgroundColor: '#fff',
+    borderRadius: 1000,
+    padding: 6,
+  },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: 'red',
+    borderRadius: 1000,
+    paddingHorizontal: 6,
+  },
   badgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+
   content: { paddingHorizontal: 10 },
-  carouselTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10, marginLeft: 10, marginTop: 15 },
-  anuncioCard: { borderRadius: 15, height: 150, marginHorizontal: 10, justifyContent: 'center', alignItems: 'center', elevation: 3 },
-  anuncioTitulo: { fontSize: 24, fontWeight: 'bold', color: '#000', marginBottom: 5 },
-  anuncioDescricao: { fontSize: 14, color: '#000', textAlign: 'center', fontWeight: 'bold', paddingHorizontal: 20 },
-  anuncioOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', borderRadius: 15, paddingHorizontal: 15 },
-  dotContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10, marginBottom: 5 },
+
+  carouselTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+    marginLeft: 10,
+    marginTop: 15,
+  },
+  carousel: {},
+  anuncioCard: {
+    borderRadius: 15,
+    height: 150,
+    marginHorizontal: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+  },
+  anuncioTitulo: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 5,
+  },
+  anuncioDescricao: {
+    fontSize: 14,
+    color: '#000',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    paddingHorizontal: 20,
+  },
+  anuncioOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 15,
+    paddingHorizontal: 15,
+  },
+
+  dotContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 5,
+  },
   dot: { width: 10, height: 10, borderRadius: 5, marginHorizontal: 5 },
   dotInactive: { backgroundColor: '#ccc' },
-  dotActive: { backgroundColor: '#0E2E98', width: 12, height: 12, borderRadius: 6 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, marginTop: 20, marginLeft: 10 },
+  dotActive: {
+    backgroundColor: '#0E2E98',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    marginTop: 20,
+    marginLeft: 10,
+  },
   horizontalList: { paddingHorizontal: 12 },
   horizontalCard: { width: 180, marginRight: 12 },
 });

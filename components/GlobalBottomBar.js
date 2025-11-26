@@ -1,51 +1,105 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
+// components/GlobalBottomBar.js
+import React, { useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  Dimensions,
+  Animated,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { useCart } from '../context/CartContext';
 
 const { height } = Dimensions.get('window');
-const BAR_HEIGHT = Platform.OS === 'web' ? 70 : Platform.OS === 'ios' ? height * 0.14 : height * 0.16;
-const CARD_SIZE = Platform.OS === 'web' ? 58 : Platform.OS === 'ios' ? 70 : 68;
+const BAR_HEIGHT =
+  Platform.OS === 'web'
+    ? 70
+    : Platform.OS === 'ios'
+    ? height * 0.14
+    : height * 0.16;
+const CARD_SIZE =
+  Platform.OS === 'web'
+    ? 58
+    : Platform.OS === 'ios'
+    ? 70
+    : 68;
 
 export default function GlobalBottomBar({ currentRouteName, navigate }) {
   const insets = useSafeAreaInsets();
+
+  // Pega total de itens; se por algum motivo o hook retornar undefined,
+  // evita quebrar:
+  let cartContext;
+  try {
+    cartContext = useCart();
+  } catch {
+    cartContext = { totalItems: 0 };
+  }
+  const totalItems = cartContext?.totalItems ?? 0;
+
   const HIDE_ON = new Set(['Cart', 'LogScreen', 'LogCadastro', 'SAD']);
-  
   if (HIDE_ON.has(currentRouteName)) return null;
 
   const items = [
-    { 
-      key: 'Home', 
-      label: 'Home', 
-      icon: (c) => <Ionicons name="home" size={24} color={c} />, 
-      route: 'Home' 
+    {
+      key: 'Home',
+      label: 'Home',
+      icon: (c) => <Ionicons name="home" size={24} color={c} />,
+      route: 'Home',
     },
-    { 
-      key: 'Search', 
-      label: 'Busca', 
-      icon: (c) => <Ionicons name="search" size={24} color={c} />, 
-      route: 'Search' 
+    {
+      key: 'Search',
+      label: 'Busca',
+      icon: (c) => <Ionicons name="search" size={24} color={c} />,
+      route: 'Search',
     },
-    { 
-      key: 'SAD', 
-      label: 'SAD', 
-      icon: (c) => <FontAwesome5 name="hand-holding-heart" size={22} color={c} />, 
-      route: 'SAD' 
+    {
+      key: 'SAD',
+      label: 'SAD',
+      icon: (c) => <FontAwesome5 name="hand-holding-heart" size={22} color={c} />,
+      route: 'SAD',
     },
-    { 
-      key: 'Cart', 
-      label: 'Cesta', 
-      icon: (c) => <Ionicons name="basket-outline" size={24} color={c} />, 
-      route: 'Cart' 
+    {
+      key: 'Cart',
+      label: 'Cesta',
+      icon: (c) => <Ionicons name="basket-outline" size={24} color={c} />,
+      route: 'Cart',
     },
-    { 
-      key: 'More', 
-      label: 'Mais', 
-      icon: (c) => <Ionicons name="menu" size={24} color={c} />, 
-      route: 'More' 
+    {
+      key: 'More',
+      label: 'Mais',
+      icon: (c) => <Ionicons name="menu" size={24} color={c} />,
+      route: 'More',
     },
   ];
+
+  // Animação do ícone da cesta
+  const cartScale = useRef(new Animated.Value(1)).current;
+  const prevTotalRef = useRef(totalItems);
+
+  useEffect(() => {
+    // Se aumentou o número de itens, anima
+    if (totalItems > prevTotalRef.current) {
+      Animated.sequence([
+        Animated.spring(cartScale, {
+          toValue: 1.25,
+          friction: 4,
+          useNativeDriver: true,
+        }),
+        Animated.spring(cartScale, {
+          toValue: 1,
+          friction: 4,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+
+    prevTotalRef.current = totalItems;
+  }, [totalItems, cartScale]);
 
   return (
     <LinearGradient
@@ -53,15 +107,20 @@ export default function GlobalBottomBar({ currentRouteName, navigate }) {
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}
       style={[
-        styles.bottomBar,    
+        styles.bottomBar,
         {
           height: BAR_HEIGHT + insets.bottom,
-          paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 4 : 8),
+          paddingBottom: Math.max(
+            insets.bottom,
+            Platform.OS === 'web' ? 4 : 8
+          ),
         },
       ]}
     >
       {items.map((it) => {
         const isActive = currentRouteName === it.key;
+        const isCart = it.key === 'Cart';
+
         return (
           <TouchableOpacity
             key={it.key}
@@ -71,7 +130,20 @@ export default function GlobalBottomBar({ currentRouteName, navigate }) {
             onPress={() => navigate(it.route)}
           >
             <View style={[styles.card, isActive && styles.cardActive]}>
-              {it.icon('#000')}
+              {isCart ? (
+                <Animated.View style={{ transform: [{ scale: cartScale }] }}>
+                  {it.icon('#000')}
+                  {totalItems > 0 && (
+                    <View style={styles.cartBadge}>
+                      <Text style={styles.cartBadgeText}>
+                        {totalItems > 99 ? '99+' : totalItems}
+                      </Text>
+                    </View>
+                  )}
+                </Animated.View>
+              ) : (
+                it.icon('#000')
+              )}
               <Text style={styles.cardLabel}>{it.label}</Text>
             </View>
           </TouchableOpacity>
@@ -95,9 +167,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     zIndex: 100,
   },
-  navItem: { 
-    flex: 1, 
-    alignItems: 'center' 
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
   },
   card: {
     width: CARD_SIZE,
@@ -118,5 +190,22 @@ const styles = StyleSheet.create({
     fontSize: Platform.OS === 'web' ? 11 : 12,
     color: '#000',
     marginTop: 2,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    backgroundColor: '#E53935',
+    minWidth: 18,
+    paddingHorizontal: 4,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

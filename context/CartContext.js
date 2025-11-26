@@ -1,20 +1,33 @@
-import React, { createContext, useState, useContext } from "react";
+// context/CartContext.js
+import React, { createContext, useState, useContext, useMemo } from "react";
 
-const CartContext = createContext();
+const CartContext = createContext({
+  cartItems: [],
+  totalItems: 0,
+  addToCart: () => {},
+  removeFromCart: () => {},
+  clearCart: () => {},
+  increaseQty: () => {},
+  decreaseQty: () => {},
+});
 
 export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState([]);
 
   const addToCart = (product) => {
-    // Normaliza o campo de imagem para `imageUrl` (vários nomes possíveis vindo do backend)
     const resolvedImage =
-      product.imageUrl || product.image || product.imagem || product.img || product.foto || product.url || null;
+      product.imageUrl ||
+      product.image ||
+      product.imagem ||
+      product.img ||
+      product.foto ||
+      product.url ||
+      null;
 
     const normalizedProduct = { ...product, imageUrl: resolvedImage };
 
     setCartItems((prev) => {
       const existing = prev.find((i) => i.id === normalizedProduct.id);
-
       if (existing) {
         return prev.map((i) =>
           i.id === normalizedProduct.id
@@ -22,8 +35,6 @@ export function CartProvider({ children }) {
             : i
         );
       }
-
-      // GARANTIA: produto sempre chega com imagem, nome, preco
       return [...prev, { ...normalizedProduct, quantidade: 1 }];
     });
   };
@@ -56,20 +67,22 @@ export function CartProvider({ children }) {
 
   const clearCart = () => setCartItems([]);
 
-  return (
-    <CartContext.Provider
-      value={{
-        cartItems,
-        addToCart,
-        removeFromCart,
-        clearCart,
-        increaseQty,
-        decreaseQty,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
+  const totalItems = useMemo(
+    () => cartItems.reduce((sum, item) => sum + (item.quantidade || 0), 0),
+    [cartItems]
   );
+
+  const value = {
+    cartItems,
+    totalItems,
+    addToCart,
+    removeFromCart,
+    clearCart,
+    increaseQty,
+    decreaseQty,
+  };
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
 export function useCart() {

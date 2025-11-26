@@ -97,8 +97,7 @@ export default function AppNavigator() {
             />
           </Stack.Navigator>
         </NavigationContainer>
-      </CartProvider>
-
+        
       {/* Renderiza bottom bar só após carregar */}
       {currentRoute && !HIDDEN_BOTTOM_BAR.has(currentRoute) && (
         <GlobalBottomBar
@@ -106,6 +105,7 @@ export default function AppNavigator() {
           navigate={(name) => navigationRef.current?.navigate(name)}
         />
       )}
+      </CartProvider>
     </View>
   );
 }

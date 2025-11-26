@@ -56,7 +56,7 @@ export default function CartScreen({ navigation }) {
   useEffect(() => {
     Animated.timing(slideAnim, {
       toValue: 0,
-      duration: 800,
+      duration: 300,
       useNativeDriver: true,
     }).start();
   }, []);
@@ -64,7 +64,7 @@ export default function CartScreen({ navigation }) {
   const closeModal = () => {
     Animated.timing(slideAnim, {
       toValue: SCREEN_HEIGHT,
-      duration: 800,
+      duration: 300,
       useNativeDriver: true,
     }).start(() => navigation.goBack());
   };
