@@ -1,5 +1,7 @@
 // context/CartContext.js
 import React, { createContext, useState, useContext, useMemo } from "react";
+import { Platform, ToastAndroid } from "react-native";
+import { sendInAppNotification } from "../services/notifications";
 
 const CartContext = createContext({
   cartItems: [],
@@ -37,6 +39,34 @@ export function CartProvider({ children }) {
       }
       return [...prev, { ...normalizedProduct, quantidade: 1 }];
     });
+
+    const nomeProduto =
+      normalizedProduct.nome ||
+      normalizedProduct.name ||
+      normalizedProduct.titulo ||
+      "Produto";
+
+    // Feedback rápido no Android (opcional)
+    try {
+      if (Platform.OS === "android" && ToastAndroid?.show) {
+        ToastAndroid.show(
+          `${nomeProduto} adicionado à sacola`,
+          ToastAndroid.SHORT
+        );
+      }
+    } catch {}
+
+    // Cria notificação de sacola (aparece na lista, abre o Cart ao tocar)
+    try {
+      sendInAppNotification({
+        title: "Produto na sacola",
+        body: `${nomeProduto} foi adicionado à sua sacola.`,
+        type: "cart",
+        productId: normalizedProduct.id,
+      });
+    } catch (e) {
+      console.warn("addToCart notification error", e?.message);
+    }
   };
 
   const increaseQty = (id) => {

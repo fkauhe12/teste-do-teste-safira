@@ -29,6 +29,12 @@ import {
 } from "firebase/auth";
 import { auth, db, ref, get } from "../services/firebase";
 
+// IMPORTA O SERVIÇO DE NOTIFICAÇÕES
+import {
+  initLocalNotifications,
+  cleanupLocalNotifications,
+} from "../services/notifications";
+
 export default function LogScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
@@ -130,6 +136,10 @@ export default function LogScreen({ navigation }) {
     try {
       setLoading(true);
       await loginUser(identifier, password);
+
+      // INICIA O LISTENER DE NOTIFICAÇÕES PARA ESTE USUÁRIO
+      await initLocalNotifications();
+
       navigation.replace("Home");
     } catch (e) {
       if (e?.code === "auth/email-not-verified") {
@@ -152,7 +162,10 @@ export default function LogScreen({ navigation }) {
   const handleForgotPassword = async () => {
     const id = (identifier || "").trim();
     if (!id) {
-      Alert.alert("Recuperar Senha", "Digite seu e-mail ou telefone para enviarmos o link.");
+      Alert.alert(
+        "Recuperar Senha",
+        "Digite seu e-mail ou telefone para enviarmos o link."
+      );
       return;
     }
 
@@ -196,6 +209,8 @@ export default function LogScreen({ navigation }) {
     try {
       setLoading(true);
       await signOut(auth);
+      // INTERROMPE O LISTENER DE NOTIFICAÇÕES AO SAIR
+      cleanupLocalNotifications();
     } catch (e) {
       Alert.alert("Erro ao sair", e?.message || "Tente novamente.");
     } finally {
@@ -238,7 +253,9 @@ export default function LogScreen({ navigation }) {
           setCity(data.localidade || "");
           setState(data.uf || "");
         })
-        .catch(() => Alert.alert("Atenção", "CEP inválido ou não encontrado"));
+        .catch(() =>
+          Alert.alert("Atenção", "CEP inválido ou não encontrado")
+        );
     }
   }, [zip]);
 
@@ -255,7 +272,10 @@ export default function LogScreen({ navigation }) {
 
   const nextStep = () => {
     const phoneDigits = telefone.replace(/\D/g, "");
-    if (step === 1 && (!fullName.trim() || !emailValid || phoneDigits.length < 8)) {
+    if (
+      step === 1 &&
+      (!fullName.trim() || !emailValid || phoneDigits.length < 8)
+    ) {
       Alert.alert("Atenção", "Preencha os dados corretamente.");
       return;
     }
@@ -296,9 +316,16 @@ export default function LogScreen({ navigation }) {
       await auth.currentUser?.reload();
       if (auth.currentUser?.emailVerified) {
         Alert.alert("Tudo certo!", "E-mail verificado com sucesso.");
+
+        // GARANTE QUE O NOVO USUÁRIO TAMBÉM TENHA NOTIFICAÇÕES
+        await initLocalNotifications();
+
         navigation.replace("Home");
       } else {
-        Alert.alert("Ainda não confirmado", "Toque em 'Reenviar e-mail' ou tente novamente em alguns segundos.");
+        Alert.alert(
+          "Ainda não confirmado",
+          "Toque em 'Reenviar e-mail' ou tente novamente em alguns segundos."
+        );
       }
     } catch (e) {
       Alert.alert("Erro", e?.message || "Não foi possível verificar agora.");
@@ -309,7 +336,13 @@ export default function LogScreen({ navigation }) {
 
   const finish = async () => {
     const phoneDigits = telefone.replace(/\D/g, "");
-    if (!fullName.trim() || !emailValid || phoneDigits.length < 8 || !passwordValid || !passwordsMatch) {
+    if (
+      !fullName.trim() ||
+      !emailValid ||
+      phoneDigits.length < 8 ||
+      !passwordValid ||
+      !passwordsMatch
+    ) {
       Alert.alert("Atenção", "Preencha os dados corretamente.");
       return;
     }
@@ -345,9 +378,14 @@ export default function LogScreen({ navigation }) {
   const wrapperProps =
     Platform.OS === "web"
       ? { style: { flex: 1 } }
-      : { style: { flex: 1 }, behavior: "padding", keyboardVerticalOffset: 20 };
+      : {
+          style: { flex: 1 },
+          behavior: "padding",
+          keyboardVerticalOffset: 20,
+        };
 
-  const displayName = currentUser?.displayName?.trim() || currentUser?.email || "";
+  const displayName =
+    currentUser?.displayName?.trim() || currentUser?.email || "";
 
   return (
     <Wrapper {...wrapperProps}>
@@ -360,7 +398,11 @@ export default function LogScreen({ navigation }) {
       <View style={styles.centerContainer}>
         {/* ======== FRONT ======== */}
         <Animated.View
-          style={[styles.card, frontAnimatedStyle, { zIndex: isFlipped ? 0 : 10 }]}
+          style={[
+            styles.card,
+            frontAnimatedStyle,
+            { zIndex: isFlipped ? 0 : 10 },
+          ]}
         >
           <Animated.View
             pointerEvents="none"
@@ -466,10 +508,12 @@ export default function LogScreen({ navigation }) {
             <>
               <Text style={styles.title}>Você já está conectado</Text>
               <View style={styles.connectedBox}>
-                <Ionicons name="person-circle-outline" size={48} color="#fff" />
-                <Text style={styles.connectedText}>
-                  {displayName}
-                </Text>
+                <Ionicons
+                  name="person-circle-outline"
+                  size={48}
+                  color="#fff"
+                />
+                <Text style={styles.connectedText}>{displayName}</Text>
               </View>
 
               <TouchableOpacity
@@ -515,10 +559,16 @@ export default function LogScreen({ navigation }) {
             disabled={isAnimating || loading || verifyLoading}
           >
             <Ionicons name="arrow-back" size={24} color="#fff" />
-            <Text style={styles.backText}>{step === 4 ? "Sair" : "Voltar"}</Text>
+            <Text style={styles.backText}>
+              {step === 4 ? "Sair" : "Voltar"}
+            </Text>
           </TouchableOpacity>
 
-          <StepIndicator steps={4} currentStep={step - 1} style={{ marginBottom: 15 }} />
+          <StepIndicator
+            steps={4}
+            currentStep={step - 1}
+            style={{ marginBottom: 15 }}
+          />
           <Text style={styles.stepText}>Passo {step} de 4</Text>
 
           {step === 1 && (
@@ -536,7 +586,9 @@ export default function LogScreen({ navigation }) {
                 style={styles.input}
                 placeholder="Telefone"
                 value={telefone}
-                onChangeText={(t) => setTelefone(t.replace(/\D/g, "").slice(0, 15))}
+                onChangeText={(t) =>
+                  setTelefone(t.replace(/\D/g, "").slice(0, 15))
+                }
                 keyboardType="phone-pad"
                 placeholderTextColor="#888"
                 editable={!isAnimating && !loading}
@@ -546,7 +598,9 @@ export default function LogScreen({ navigation }) {
                 style={styles.input}
                 placeholder="CPF (opcional)"
                 value={cpf}
-                onChangeText={(t) => setCpf(t.replace(/\D/g, "").slice(0, 11))}
+                onChangeText={(t) =>
+                  setCpf(t.replace(/\D/g, "").slice(0, 11))
+                }
                 keyboardType="numeric"
                 placeholderTextColor="#888"
                 editable={!isAnimating && !loading}
@@ -561,7 +615,9 @@ export default function LogScreen({ navigation }) {
                 placeholderTextColor="#888"
                 editable={!isAnimating && !loading}
               />
-              {emailValid === false && <Text style={styles.errorText}>E-mail inválido</Text>}
+              {emailValid === false && (
+                <Text style={styles.errorText}>E-mail inválido</Text>
+              )}
             </>
           )}
 
@@ -570,7 +626,9 @@ export default function LogScreen({ navigation }) {
               <Text style={styles.title}>Crie uma senha</Text>
 
               {/* Senha */}
-              <View style={[styles.passwordContainer, { marginBottom: 12 }]}>
+              <View
+                style={[styles.passwordContainer, { marginBottom: 12 }]}
+              >
                 <TextInput
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
                   placeholder="Senha"
@@ -595,7 +653,9 @@ export default function LogScreen({ navigation }) {
               </View>
 
               {/* Confirmar senha */}
-              <View style={[styles.passwordContainer, { marginBottom: 12 }]}>
+              <View
+                style={[styles.passwordContainer, { marginBottom: 12 }]}
+              >
                 <TextInput
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
                   placeholder="Confirmar senha"
@@ -621,7 +681,8 @@ export default function LogScreen({ navigation }) {
 
               {passwordValid === false && (
                 <Text style={styles.errorText}>
-                  Senha deve ter 8 caracteres, 1 maiúscula, 1 minúscula e 1 número
+                  Senha deve ter 8 caracteres, 1 maiúscula, 1 minúscula e 1
+                  número
                 </Text>
               )}
               {passwordsMatch === false && (
@@ -637,7 +698,9 @@ export default function LogScreen({ navigation }) {
                 style={styles.input}
                 placeholder="CEP"
                 value={zip}
-                onChangeText={(t) => setZip(t.replace(/\D/g, "").slice(0, 8))}
+                onChangeText={(t) =>
+                  setZip(t.replace(/\D/g, "").slice(0, 8))
+                }
                 keyboardType="numeric"
                 placeholderTextColor="#888"
                 editable={!isAnimating && !loading}
@@ -681,20 +744,43 @@ export default function LogScreen({ navigation }) {
           {step === 4 && (
             <>
               <Text style={styles.title}>Verifique seu e-mail</Text>
-              <Text style={{ color: "#ccc", textAlign: "center", marginBottom: 12 }}>
+              <Text
+                style={{
+                  color: "#ccc",
+                  textAlign: "center",
+                  marginBottom: 12,
+                }}
+              >
                 Enviamos um link de confirmação para:
               </Text>
-              <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700", marginBottom: 18 }}>
+              <Text
+                style={{
+                  color: "#fff",
+                  textAlign: "center",
+                  fontWeight: "700",
+                  marginBottom: 18,
+                }}
+              >
                 {auth.currentUser?.email || email}
               </Text>
 
-              <Text style={{ color: "#ccc", textAlign: "center", marginBottom: 16 }}>
-                Abra o e-mail e clique no link. Depois, toque em "Já verifiquei" abaixo.
+              <Text
+                style={{
+                  color: "#ccc",
+                  textAlign: "center",
+                  marginBottom: 16,
+                }}
+              >
+                Abra o e-mail e clique no link. Depois, toque em "Já verifiquei"
+                abaixo.
               </Text>
 
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <TouchableOpacity
-                  style={[styles.button, { flex: 1, backgroundColor: "#666" }]}
+                  style={[
+                    styles.button,
+                    { flex: 1, backgroundColor: "#666" },
+                  ]}
                   onPress={handleResendVerification}
                   disabled={verifyLoading || resendCooldown > 0}
                 >
@@ -702,7 +788,9 @@ export default function LogScreen({ navigation }) {
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text style={styles.buttonText}>
-                      {resendCooldown > 0 ? `Reenviar (${resendCooldown}s)` : "Reenviar e-mail"}
+                      {resendCooldown > 0
+                        ? `Reenviar (${resendCooldown}s)`
+                        : "Reenviar e-mail"}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -803,10 +891,20 @@ const styles = StyleSheet.create({
   cardBack: {
     alignSelf: "center",
   },
-  backButtonInside: { flexDirection: "row", alignItems: "center", marginBottom: 15 },
+  backButtonInside: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+  },
   backText: { color: "#fff", marginLeft: 6, fontSize: 16 },
   logo: { alignItems: "center", marginBottom: 15 },
-  title: { fontSize: 22, fontWeight: "700", color: "#fff", textAlign: "center", marginBottom: 15 },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 15,
+  },
   input: {
     backgroundColor: "#333",
     color: "#fff",
@@ -836,7 +934,11 @@ const styles = StyleSheet.create({
   linkButton: { alignItems: "center", paddingVertical: 8 },
   linkText: { color: "#1E90FF", fontSize: 16, fontWeight: "500" },
   stepText: { color: "#fff", textAlign: "center", marginBottom: 15 },
-  buttons: { flexDirection: "row", justifyContent: "space-between", marginTop: 15 },
+  buttons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 15,
+  },
   button: {
     flex: 1,
     backgroundColor: "#007AFF",
@@ -847,7 +949,12 @@ const styles = StyleSheet.create({
   },
   backButton: { backgroundColor: "#444444ff" },
   backButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  errorText: { color: "#e63946", fontSize: 13, textAlign: "center", marginBottom: 8 },
+  errorText: {
+    color: "#e63946",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 8,
+  },
   connectedBox: {
     backgroundColor: "#2a2a2a",
     borderRadius: 12,

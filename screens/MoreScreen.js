@@ -1,3 +1,4 @@
+// screens/MoreScreen.js
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -8,15 +9,19 @@ import {
   ScrollView,
   Platform,
   StatusBar,
-  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import GlobalBottomBar from "../components/GlobalBottomBar";
 
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "../services/firebase";
+import { auth, db, firestoreDb } from "../services/firebase";
 import { ref, get } from "firebase/database";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+} from "firebase/firestore";
 
 // 🧩 utilitário multiplataforma para imagem
 const getLogoSource = () => {
@@ -72,73 +77,97 @@ const getShortName = (fullName = "") => {
 
 const MoreScreen = ({ navigation }) => {
   const logoSource = getLogoSource();
+
+  const [user, setUser] = useState(null);
   const [greetingName, setGreetingName] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isDriver, setIsDriver] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  // Busca nome do usuário logado (displayName instantâneo + atualiza com DB)
+  // Busca usuário + nome + roles (via Realtime Database)
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+
+      if (!firebaseUser) {
         setGreetingName("");
         setIsAdmin(false);
         setIsDriver(false);
+        setUnreadCount(0);
         return;
       }
 
-      // 1) coloca algo imediato (displayName ou email)
+      // Nome imediato (displayName ou parte do email)
       const immediate =
-        getShortName(user.displayName || "") ||
-        (user.email ? user.email.split("@")[0] : "");
+        getShortName(firebaseUser.displayName || "") ||
+        (firebaseUser.email ? firebaseUser.email.split("@")[0] : "");
       setGreetingName(immediate);
 
-      // 2) prioriza claims do token (mais seguro). Se não existir, tenta RTDB como fallback.
       try {
-        // força leitura do token para pegar claims atualizadas
-        const idRes = await user.getIdTokenResult();
-        const claims = idRes.claims || {};
-        if (claims.admin) setIsAdmin(true);
-        if (claims.driver) setIsDriver(true);
+        const snap = await get(ref(db, `users/${firebaseUser.uid}`));
 
-        // se não encontrou claims, tenta RTDB (fallback para dev/testing)
-        if (!claims.admin && !claims.driver) {
-          const snap = await get(ref(db, `users/${user.uid}`));
-          const fullName =
-            (snap.exists() && (snap.val()?.fullName || "").trim()) || "";
+        if (snap.exists()) {
+          const data = snap.val() || {};
+
+          const fullName = (data.fullName || "").trim();
           const short = getShortName(fullName);
           if (short) setGreetingName(short);
 
-          if (snap.exists()) {
-            const data = snap.val() || {};
-            const role = (data.role || "").toLowerCase();
-            const rolesObj = data.roles || {};
-            const isAdminFlag = !!data.isAdmin || role === "admin" || !!rolesObj.admin;
-            const isDriverFlag = !!data.isDriver || role === "driver" || !!rolesObj.driver;
-            setIsAdmin(Boolean(isAdminFlag));
-            setIsDriver(Boolean(isDriverFlag));
-          }
+          setIsAdmin(!!data.isAdmin);
+          setIsDriver(!!data.isDriver);
+        } else {
+          setIsAdmin(false);
+          setIsDriver(false);
         }
       } catch (err) {
-        console.warn('MoreScreen: failed to read token or DB', err?.message);
+        console.warn("MoreScreen: erro lendo /users", err?.message);
+        setIsAdmin(false);
+        setIsDriver(false);
       }
     });
+
     return () => unsub();
   }, []);
 
+  // Listener de notificações NÃO lidas para badge
+  useEffect(() => {
+    if (!firestoreDb) return;
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+
+    const q = query(
+      collection(firestoreDb, "notifications"),
+      where("userId", "==", user.uid)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        let count = 0;
+        snap.forEach((d) => {
+          const data = d.data();
+          if (!data.read) count += 1;
+        });
+        setUnreadCount(count);
+      },
+      (err) => {
+        console.warn("MoreScreen notifications snapshot err", err?.message);
+      }
+    );
+
+    return () => unsub();
+  }, [user]);
+
   const greetingText = `Olá, ${greetingName || "Visitante"}!`;
 
-  // Dev helper: mostrar UID e claims para facilitar testes
-  const [devInfo, setDevInfo] = useState(null);
-  const refreshClaims = async () => {
-    try {
-      const user = auth.currentUser;
-      if (!user) return;
-      await user.getIdTokenResult(true);
-      const idRes = await user.getIdTokenResult();
-      setDevInfo({ uid: user.uid, email: user.email, claims: idRes.claims });
-    } catch (e) {
-      console.warn('refreshClaims error', e?.message);
-    }
+  // Botão principal: sempre navega para Log, só muda o texto
+  const isLoggedIn = !!user;
+  const primaryButtonLabel = isLoggedIn ? "Sair" : "Entrar";
+
+  const handlePrimaryButton = () => {
+    navigation.navigate("Log"); // LogScreen continua responsável por login/logout
   };
 
   return (
@@ -161,20 +190,27 @@ const MoreScreen = ({ navigation }) => {
 
           <Text style={styles.greeting}>{greetingText}</Text>
 
-          <TouchableOpacity style={styles.notification} onPress={() => navigation.navigate('Notifications')}>
+          <TouchableOpacity
+            style={styles.notification}
+            onPress={() => navigation.navigate("Notifications")}
+          >
             <Ionicons name="notifications-outline" size={24} color="#000" />
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>1</Text>
-            </View>
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </LinearGradient>
 
         {/* Body */}
         <ScrollView style={styles.body} keyboardShouldPersistTaps="always">
-          {/* Botão Entrar */}
+          {/* Botão Entrar/Sair */}
           <TouchableOpacity
             style={styles.loginButton}
-            onPress={() => navigation.navigate("Log")}
+            onPress={handlePrimaryButton}
             activeOpacity={0.85}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
@@ -184,7 +220,7 @@ const MoreScreen = ({ navigation }) => {
               end={{ x: 1, y: 1 }}
               style={styles.loginGradient}
             >
-              <Text style={styles.loginText}>Entrar</Text>
+              <Text style={styles.loginText}>{primaryButtonLabel}</Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -197,7 +233,7 @@ const MoreScreen = ({ navigation }) => {
               <Text style={styles.infoText}>Cupons</Text>
             </TouchableOpacity>
 
-            {/* Novo: Alterar dados */}
+            {/* Alterar dados */}
             <TouchableOpacity
               style={styles.infoItem}
               onPress={() => navigation.navigate("EditProfile")}
@@ -206,27 +242,33 @@ const MoreScreen = ({ navigation }) => {
               <Text style={styles.infoText}>Alterar dados</Text>
             </TouchableOpacity>
 
-            {/* Área Admin - visível apenas para admins */}
+            {/* Painel Admin - só admin */}
             {isAdmin && (
               <TouchableOpacity
                 style={styles.infoItem}
                 onPress={() => navigation.navigate("AdminPanel")}
               >
-                <Ionicons name="shield-checkmark-outline" size={20} color="#000" />
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={20}
+                  color="#000"
+                />
                 <Text style={styles.infoText}>Painel Admin</Text>
               </TouchableOpacity>
             )}
 
-            {/* Meus Pedidos - disponível para usuário logado */}
-            <TouchableOpacity
-              style={styles.infoItem}
-              onPress={() => navigation.navigate('MyOrders')}
-            >
-              <Ionicons name="receipt-outline" size={20} color="#000" />
-              <Text style={styles.infoText}>Meus Pedidos</Text>
-            </TouchableOpacity>
+            {/* Meus Pedidos - só para logado */}
+            {isLoggedIn && (
+              <TouchableOpacity
+                style={styles.infoItem}
+                onPress={() => navigation.navigate("MyOrders")}
+              >
+                <Ionicons name="receipt-outline" size={20} color="#000" />
+                <Text style={styles.infoText}>Meus Pedidos</Text>
+              </TouchableOpacity>
+            )}
 
-            {/* Área Entregador - visível apenas para entregadores */}
+            {/* Área Entregador - só driver */}
             {isDriver && (
               <TouchableOpacity
                 style={styles.infoItem}
@@ -237,18 +279,15 @@ const MoreScreen = ({ navigation }) => {
               </TouchableOpacity>
             )}
           </View>
-
-          {/* Dev debug removed - production build */}
         </ScrollView>
       </View>
-
-      {/* GlobalBottomBar is rendered by AppNavigator; remove duplicate to avoid overlays */}
     </View>
   );
 };
 
 export default MoreScreen;
 
+// estilos iguais aos seus
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -256,7 +295,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    marginBottom: Platform.OS === "web" ? 70 : Platform.OS === "ios" ?200: 200,
+    marginBottom:
+      Platform.OS === "web"
+        ? 70
+        : Platform.OS === "ios"
+        ? 200
+        : 200,
   },
   header: {
     height: "18%",
@@ -303,10 +347,14 @@ const styles = StyleSheet.create({
     backgroundColor: "red",
     borderRadius: 1000,
     paddingHorizontal: 5,
+    minWidth: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
   },
   badgeText: {
     color: "#fff",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "bold",
   },
   body: {
@@ -346,12 +394,5 @@ const styles = StyleSheet.create({
   infoText: {
     marginLeft: 10,
     fontSize: 16,
-  },
-  btnSmall: {
-    backgroundColor: '#425bab',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: 'center',
   },
 });
